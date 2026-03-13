@@ -1,0 +1,10 @@
+[application]
+name = "BrewVault"
+default_platform = "desktop"
+
+[web.app]
+title = "BrewVault"
+
+[web.watcher]
+reload_html = true
+watch_path = ["src", "assets"]
