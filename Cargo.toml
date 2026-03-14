@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-dioxus = { version = "0.7", features = ["desktop", "router"] }
+dioxus = { version = "0.7", features = ["desktop", "router", "signals"] }
 totp-rs = { version = "5", features = ["gen_secret", "serde_support"] }
 keyring = { version = "3", features = ["apple-native"] }
 serde = { version = "1", features = ["derive"] }

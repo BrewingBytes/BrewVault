@@ -1,5 +1,7 @@
 use dioxus::prelude::*;
 
+pub mod models;
+
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {
