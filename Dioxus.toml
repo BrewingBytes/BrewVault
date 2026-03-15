@@ -8,3 +8,7 @@ title = "BrewVault"
 [web.watcher]
 reload_html = true
 watch_path = ["src", "assets"]
+
+[bundle]
+identifier = "com.brewingbytes.brewvault"
+publisher = "BrewingBytes"
