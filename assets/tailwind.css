@@ -1,2 +1,15 @@
 @import "tailwindcss";
+@import "./colors.css";
 @source "../src";
+
+@theme inline {
+    --color-base: var(--color-base);
+    --color-surface: var(--color-surface);
+    --color-surface2: var(--color-surface2);
+    --color-edge: var(--color-edge);
+    --color-primary: var(--color-primary);
+    --color-muted: var(--color-muted);
+    --color-accent: var(--color-accent);
+    --color-warn: var(--color-warn);
+    --color-danger: var(--color-danger);
+}

@@ -12,7 +12,7 @@ fn App() -> Element {
         document::Stylesheet { href: MAIN_CSS }
         div {
             class: "min-h-screen bg-gray-950 flex items-center justify-center",
-            h1 { class: "text-5xl font-bold text-white", "Hello, BrewVault!" }
+            h1 { class: "text-5xl font-bold text-warn", "Hello, BrewVault!" }
         }
     }
 }
