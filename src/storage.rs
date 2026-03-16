@@ -166,10 +166,11 @@ mod tests {
     use super::*;
     use tempfile::NamedTempFile;
 
-    fn open_memory_db() -> Connection {
+    fn test_db() -> Connection {
         let conn = Connection::open_in_memory().expect("failed to open in-memory DB");
         conn.pragma_update(None, "key", "test-key")
             .expect("PRAGMA key failed");
+        init_schema(&conn).expect("init_schema failed");
         conn
     }
 
@@ -187,15 +188,13 @@ mod tests {
 
     #[test]
     fn test_init_schema_is_idempotent() {
-        let conn = open_memory_db();
-        init_schema(&conn).expect("first init_schema failed");
+        let conn = test_db();
         init_schema(&conn).expect("second init_schema failed");
     }
 
     #[test]
     fn test_save_and_load_entry() {
-        let conn = open_memory_db();
-        init_schema(&conn).expect("init_schema failed");
+        let conn = test_db();
 
         let entry = make_entry();
         save_entry(&conn, &entry).expect("save_entry failed");
@@ -214,8 +213,7 @@ mod tests {
 
     #[test]
     fn test_delete_entry() {
-        let conn = open_memory_db();
-        init_schema(&conn).expect("init_schema failed");
+        let conn = test_db();
 
         let entry = make_entry();
         save_entry(&conn, &entry).expect("save_entry failed");
@@ -227,8 +225,7 @@ mod tests {
 
     #[test]
     fn test_upsert_replaces_existing() {
-        let conn = open_memory_db();
-        init_schema(&conn).expect("init_schema failed");
+        let conn = test_db();
 
         let entry = make_entry();
         save_entry(&conn, &entry).expect("first save failed");
