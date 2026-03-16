@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
 
+/// 2×2 grid icon used for the Accounts nav item.
 #[component]
 pub fn IGrid() -> Element {
     rsx! {
@@ -23,6 +24,7 @@ pub fn IGrid() -> Element {
     }
 }
 
+/// Gear/cog icon used for the Settings nav item.
 #[component]
 pub fn ICog() -> Element {
     rsx! {
