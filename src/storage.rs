@@ -1,25 +1,18 @@
 //! Persistent, encrypted storage for BrewVault TOTP entries.
 //!
-//! All vault data is stored in a SQLCipher-encrypted SQLite database. The
-//! module exposes a process-wide singleton connection ([`DB`]) that is
-//! initialised once at startup via [`init`] and then accessed through the
-//! [`with_db`] helper.
+//! All vault data is stored in a SQLCipher-encrypted SQLite database.
+//! Callers obtain a [`Connection`] via [`open_and_init`] and store it in
+//! [`AppState`]; there is no process-wide singleton here.
 //!
 //! # Encryption
 //! The database key is currently hardcoded (`DB_KEY`). A master-password flow
 //! is deferred to v2.
 
-use std::{
-    path::PathBuf,
-    sync::{Mutex, MutexGuard},
-};
+use std::path::PathBuf;
 
 use rusqlite::{Connection, Result, params};
 
 use crate::models::totp::{Algorithm, Digits, TotpEntry};
-
-/// Process-wide SQLCipher connection, initialised by [`init`].
-static DB: Mutex<Option<Connection>> = Mutex::new(None);
 
 /// Hardcoded encryption key used until a master-password flow is introduced.
 const DB_KEY: &str = "brew-vault-hardcoded-key";
@@ -45,7 +38,10 @@ pub fn open_db(key: &str) -> Result<Connection> {
         std::fs::create_dir_all(parent).expect("could not create data directory");
     }
     let conn = Connection::open(&path)?;
-    conn.execute_batch(&format!("PRAGMA key = '{}';", key))?;
+    // Use pragma_update so the key is passed as a bound parameter, not
+    // interpolated into SQL — prevents injection if the key ever comes from
+    // user input.
+    conn.pragma_update(None, "key", key)?;
     Ok(conn)
 }
 
@@ -66,47 +62,50 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
     )
 }
 
-/// Initialises the global database connection.
+/// Opens the vault database with the hardcoded key and initialises the schema.
 ///
-/// Opens the vault file with [`DB_KEY`], runs [`init_schema`], and stores the
-/// connection in the [`DB`] static. Must be called once before any other
-/// storage function is used (typically at the top of `main`).
-pub fn init() -> Result<()> {
+/// Returns the ready-to-use [`Connection`]. Callers are responsible for
+/// storing it (typically in [`AppState`]).
+pub fn open_and_init() -> Result<Connection> {
     let conn = open_db(DB_KEY)?;
     init_schema(&conn)?;
-    let mut guard = DB.lock().expect("DB mutex poisoned");
-    *guard = Some(conn);
-    Ok(())
+    Ok(conn)
 }
 
 /// Loads all TOTP entries from the database.
 ///
 /// Returns a [`Vec`] of [`TotpEntry`] in insertion order.
 pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
-    let mut stmt = conn.prepare(
-        "SELECT id, issuer, account, secret, algorithm, digits, period FROM entries",
-    )?;
-    let entries = stmt.query_map([], |row| {
-        let algorithm_str: String = row.get(4)?;
-        let digits_i64: i64 = row.get(5)?;
-        let period: i64 = row.get(6)?;
+    let mut stmt =
+        conn.prepare("SELECT id, issuer, account, secret, algorithm, digits, period FROM entries")?;
+    let entries = stmt
+        .query_map([], |row| {
+            let algorithm_str: String = row.get(4)?;
+            let digits_i64: i64 = row.get(5)?;
+            let period: i64 = row.get(6)?;
 
-        let algorithm = Algorithm::try_from(algorithm_str.as_str())
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, e.into()))?;
-        let digits = Digits::try_from(digits_i64)
-            .map_err(|e| rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Integer, e.into()))?;
+            let algorithm = Algorithm::try_from(algorithm_str.as_str()).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, e.into())
+            })?;
+            let digits = Digits::try_from(digits_i64).map_err(|e| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    5,
+                    rusqlite::types::Type::Integer,
+                    e.into(),
+                )
+            })?;
 
-        Ok(TotpEntry {
-            id: row.get(0)?,
-            issuer: row.get(1)?,
-            account: row.get(2)?,
-            secret: row.get(3)?,
-            algorithm,
-            digits,
-            period: period as u64,
-        })
-    })?
-    .collect::<Result<Vec<_>>>()?;
+            Ok(TotpEntry {
+                id: row.get(0)?,
+                issuer: row.get(1)?,
+                account: row.get(2)?,
+                secret: row.get(3)?,
+                algorithm,
+                digits,
+                period: period as u64,
+            })
+        })?
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(entries)
 }
@@ -138,26 +137,13 @@ pub fn delete_entry(conn: &Connection, id: &str) -> Result<()> {
     Ok(())
 }
 
-/// Locks the global [`DB`] mutex and passes the connection to `f`.
-///
-/// # Panics
-/// Panics if [`init`] has not been called or if the mutex is poisoned.
-pub fn with_db<F, T>(f: F) -> T
-where
-    F: FnOnce(&Connection) -> T,
-{
-    let guard: MutexGuard<Option<Connection>> = DB.lock().expect("DB mutex poisoned");
-    let conn = guard.as_ref().expect("DB not initialized");
-    f(conn)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn open_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("failed to open in-memory DB");
-        conn.execute_batch(&format!("PRAGMA key = '{}';", "test-key"))
+        conn.pragma_update(None, "key", "test-key")
             .expect("PRAGMA key failed");
         conn
     }
@@ -222,7 +208,7 @@ mod tests {
 
         {
             let conn = Connection::open(&path).expect("open for write failed");
-            conn.execute_batch("PRAGMA key = 'correct-key';")
+            conn.pragma_update(None, "key", "correct-key")
                 .expect("set key failed");
             init_schema(&conn).expect("init_schema failed");
             let entry = make_entry();
@@ -231,7 +217,7 @@ mod tests {
 
         {
             let conn = Connection::open(&path).expect("open for read failed");
-            conn.execute_batch("PRAGMA key = 'wrong-key';")
+            conn.pragma_update(None, "key", "wrong-key")
                 .expect("PRAGMA key failed");
             let result = load_entries(&conn);
             assert!(result.is_err(), "expected error with wrong key");
