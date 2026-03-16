@@ -31,6 +31,7 @@ fn App() -> Element {
 fn AppShell() -> Element {
     let route = use_route::<Route>();
     let show_nav = route != Route::Add {};
+
     rsx! {
         div {
             class: "h-screen bg-base flex flex-col overflow-hidden",
