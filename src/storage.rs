@@ -19,13 +19,12 @@ const DB_KEY: &str = "brew-vault-hardcoded-key";
 
 /// Returns the platform-appropriate path to the vault database file.
 ///
-/// On macOS this resolves to
-/// `~/Library/Application Support/Brew Vault/vault.db`.
-pub fn db_path() -> PathBuf {
-    dirs::data_dir()
-        .expect("could not determine data directory")
-        .join("Brew Vault")
-        .join("vault.db")
+/// Prefers `dirs::data_dir()` (e.g. `~/Library/Application Support` on macOS),
+/// falling back to `dirs::home_dir()` if the former is unavailable.
+/// Returns `None` only when neither directory can be resolved.
+pub fn db_path() -> Option<PathBuf> {
+    let base = dirs::data_dir().or_else(dirs::home_dir)?;
+    Some(base.join("Brew Vault").join("vault.db"))
 }
 
 /// Opens (or creates) the SQLCipher database at [`db_path`] using `key`.
@@ -33,9 +32,12 @@ pub fn db_path() -> PathBuf {
 /// The parent directory is created automatically if it does not exist.
 /// Returns an error if the file cannot be opened or if the key pragma fails.
 pub fn open_db(key: &str) -> Result<Connection> {
-    let path = db_path();
+    let path = db_path().ok_or_else(|| {
+        rusqlite::Error::InvalidPath(PathBuf::from("could not resolve data or home directory"))
+    })?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).expect("could not create data directory");
+        std::fs::create_dir_all(parent)
+            .map_err(|_| rusqlite::Error::InvalidPath(parent.to_path_buf()))?;
     }
     let conn = Connection::open(&path)?;
     // Use pragma_update so the key is passed as a bound parameter, not
@@ -74,7 +76,7 @@ pub fn open_and_init() -> Result<Connection> {
 
 /// Loads all TOTP entries from the database.
 ///
-/// Returns a [`Vec`] of [`TotpEntry`] in insertion order.
+/// Returns a [`Vec`] of [`TotpEntry`] with no guaranteed ordering.
 pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
     let mut stmt =
         conn.prepare("SELECT id, issuer, account, secret, algorithm, digits, period FROM entries")?;
@@ -95,6 +97,17 @@ pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
                 )
             })?;
 
+            let period = u64::try_from(period)
+                .ok()
+                .filter(|&p| p > 0)
+                .ok_or_else(|| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        6,
+                        rusqlite::types::Type::Integer,
+                        "period must be a positive integer".into(),
+                    )
+                })?;
+
             Ok(TotpEntry {
                 id: row.get(0)?,
                 issuer: row.get(1)?,
@@ -102,7 +115,7 @@ pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
                 secret: row.get(3)?,
                 algorithm,
                 digits,
-                period: period as u64,
+                period,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
@@ -140,6 +153,7 @@ pub fn delete_entry(conn: &Connection, id: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::NamedTempFile;
 
     fn open_memory_db() -> Connection {
         let conn = Connection::open_in_memory().expect("failed to open in-memory DB");
@@ -202,9 +216,8 @@ mod tests {
 
     #[test]
     fn test_wrong_key_fails() {
-        let path = std::env::temp_dir().join("brew-vault-test-wrong-key.db");
-        // Clean up any leftover file from a previous run.
-        let _ = std::fs::remove_file(&path);
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let path = temp_file.path().to_path_buf();
 
         {
             let conn = Connection::open(&path).expect("open for write failed");
@@ -222,7 +235,5 @@ mod tests {
             let result = load_entries(&conn);
             assert!(result.is_err(), "expected error with wrong key");
         }
-
-        let _ = std::fs::remove_file(&path);
     }
 }

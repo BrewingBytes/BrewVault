@@ -43,4 +43,26 @@ brew-vault/
 
 ## Tests
 
-There are no automated tests at this time.
+Run the full test suite:
+
+```sh
+cargo test
+```
+
+Run a specific test by name:
+
+```sh
+cargo test test_wrong_key_fails
+```
+
+Run only the storage or TOTP tests:
+
+```sh
+cargo test storage
+cargo test totp
+```
+
+Tests cover:
+
+- `storage` — schema init, save/load round-trip, delete, and wrong-key rejection
+- `totp` — code generation (SHA-1, SHA-256), output format, invalid secrets, and `seconds_remaining` range
