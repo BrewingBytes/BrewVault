@@ -102,6 +102,11 @@ pub fn TotpCard(entry: TotpEntry) -> Element {
 
     let secs_val = secs();
     let avatar = initials(&entry.issuer);
+    let color = if secs_val <= 7 {
+        "text-danger"
+    } else {
+        "text-accent"
+    };
 
     rsx! {
         div {
@@ -133,7 +138,7 @@ pub fn TotpCard(entry: TotpEntry) -> Element {
             div {
                 class: "flex flex-col shrink-0",
                 span {
-                    class: "font-mono text-accent text-xl font-bold tracking-widest",
+                    class: format!("font-mono text-xl font-bold tracking-widest {color}"),
                     { format_code(&code()) }
                 }
                 span {
