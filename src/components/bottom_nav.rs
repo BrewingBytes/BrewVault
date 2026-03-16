@@ -2,6 +2,9 @@ use crate::components::icons::{ICog, IGrid};
 use crate::routes::Route;
 use dioxus::prelude::*;
 
+/// Fixed bottom navigation bar with links to the Accounts and Settings views.
+///
+/// The active route's icon and label are highlighted with the accent colour.
 #[component]
 pub fn BottomNav() -> Element {
     let route = use_route::<Route>();

@@ -2,6 +2,10 @@ use crate::components::bottom_nav::BottomNav;
 use crate::routes::Route;
 use dioxus::prelude::*;
 
+/// Root layout component that wraps every route.
+///
+/// Renders the page content via [`Outlet`] and conditionally shows
+/// [`BottomNav`] — the nav bar is hidden on the Add route.
 #[component]
 pub fn AppShell() -> Element {
     let route = use_route::<Route>();

@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 use crate::routes::Route;
 
+/// Circular accent-coloured button that navigates to the Add route.
 #[component]
 pub fn AddButton() -> Element {
     let nav = use_navigator();

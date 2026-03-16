@@ -6,6 +6,7 @@ use tokio::time::sleep;
 use crate::components::add_button::AddButton;
 use crate::models::app_state::APP_STATE;
 
+/// Returns the number of seconds remaining in the current 30-second TOTP window.
 fn global_seconds_remaining() -> u8 {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -13,6 +14,8 @@ fn global_seconds_remaining() -> u8 {
     (30 - (now.as_secs() % 30)) as u8
 }
 
+/// Header bar for the Accounts view showing the title, account count,
+/// a live TOTP refresh countdown, and the [`AddButton`].
 #[component]
 fn AccountsHeader() -> Element {
     let mut secs = use_signal(global_seconds_remaining);
@@ -50,6 +53,9 @@ fn AccountsHeader() -> Element {
     }
 }
 
+/// Controlled search input that writes the user's query into `query`.
+///
+/// Displays a clear button when the query is non-empty.
 #[component]
 fn SearchBar(query: Signal<String>) -> Element {
     let mut focused = use_signal(|| false);
@@ -91,6 +97,10 @@ fn SearchBar(query: Signal<String>) -> Element {
     }
 }
 
+/// Main accounts list view.
+///
+/// Displays the [`AccountsHeader`], a [`SearchBar`], and the list of TOTP
+/// entries. Shows an empty-state message when no accounts have been added yet.
 #[component]
 pub fn Accounts() -> Element {
     let query = use_signal(String::new);
