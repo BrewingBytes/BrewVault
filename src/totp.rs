@@ -1,3 +1,13 @@
+//! TOTP code generation and countdown helpers.
+//!
+//! The public surface is intentionally small: [`generate_code`] produces the
+//! current OTP for a [`TotpEntry`], and [`seconds_remaining`] reports how many
+//! seconds are left before the code rotates — useful for driving a countdown
+//! indicator in the UI.
+//!
+//! The private [`generate_code_at`] function accepts an explicit timestamp so
+//! it can be exercised with RFC 6238 test vectors without sleeping.
+
 use chrono::Utc;
 use totp_rs::TOTP;
 
