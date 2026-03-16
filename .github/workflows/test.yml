@@ -21,7 +21,17 @@ jobs:
             libglib2.0-dev \
             libjavascriptcoregtk-4.1-dev \
             libsoup-3.0-dev \
-            libwebkit2gtk-4.1-dev
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev
+
+      - name: Install Tailwind CSS CLI
+        run: |
+          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
+          chmod +x tailwindcss-linux-x64
+          sudo mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+
+      - name: Generate main.css
+        run: tailwindcss -i assets/tailwind.css -o assets/main.css
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
