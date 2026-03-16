@@ -43,10 +43,22 @@ brew-vault/
 
 ## Tests
 
-Run the full test suite:
+Run the full test suite (unit + integration):
 
 ```sh
 cargo test
+```
+
+Run only unit tests:
+
+```sh
+cargo test --lib
+```
+
+Run only integration tests:
+
+```sh
+cargo test --test storage_roundtrip
 ```
 
 Run a specific test by name:
@@ -55,7 +67,7 @@ Run a specific test by name:
 cargo test test_wrong_key_fails
 ```
 
-Run only the storage or TOTP tests:
+Filter by module:
 
 ```sh
 cargo test storage
@@ -64,5 +76,6 @@ cargo test totp
 
 Tests cover:
 
-- `storage` — schema init, save/load round-trip, delete, and wrong-key rejection
-- `totp` — code generation (SHA-1, SHA-256), output format, invalid secrets, and `seconds_remaining` range
+- `storage` (unit) — schema init, save/load round-trip, upsert, delete, and wrong-key rejection
+- `totp` (unit) — code generation (SHA-1, SHA-256), output format, invalid secrets, and `seconds_remaining` range
+- `storage_roundtrip` (integration) — persists 3 entries to a real encrypted file, reopens with the same key, and asserts all fields survive the round-trip

@@ -64,6 +64,17 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
     )
 }
 
+/// Opens (or creates) a SQLCipher database at an explicit `path` using `key`.
+///
+/// Unlike [`open_db`], this does not consult [`db_path`] and does not create
+/// parent directories. Intended for tests that need a real on-disk file in a
+/// temporary directory.
+pub fn open_db_at(path: impl AsRef<std::path::Path>, key: &str) -> Result<Connection> {
+    let conn = Connection::open(path)?;
+    conn.pragma_update(None, "key", key)?;
+    Ok(conn)
+}
+
 /// Opens the vault database with the hardcoded key and initialises the schema.
 ///
 /// Returns the ready-to-use [`Connection`]. Callers are responsible for
@@ -155,10 +166,11 @@ mod tests {
     use super::*;
     use tempfile::NamedTempFile;
 
-    fn open_memory_db() -> Connection {
+    fn test_db() -> Connection {
         let conn = Connection::open_in_memory().expect("failed to open in-memory DB");
         conn.pragma_update(None, "key", "test-key")
             .expect("PRAGMA key failed");
+        init_schema(&conn).expect("init_schema failed");
         conn
     }
 
@@ -176,15 +188,13 @@ mod tests {
 
     #[test]
     fn test_init_schema_is_idempotent() {
-        let conn = open_memory_db();
-        init_schema(&conn).expect("first init_schema failed");
+        let conn = test_db();
         init_schema(&conn).expect("second init_schema failed");
     }
 
     #[test]
     fn test_save_and_load_entry() {
-        let conn = open_memory_db();
-        init_schema(&conn).expect("init_schema failed");
+        let conn = test_db();
 
         let entry = make_entry();
         save_entry(&conn, &entry).expect("save_entry failed");
@@ -203,8 +213,7 @@ mod tests {
 
     #[test]
     fn test_delete_entry() {
-        let conn = open_memory_db();
-        init_schema(&conn).expect("init_schema failed");
+        let conn = test_db();
 
         let entry = make_entry();
         save_entry(&conn, &entry).expect("save_entry failed");
@@ -212,6 +221,26 @@ mod tests {
 
         let entries = load_entries(&conn).expect("load_entries failed");
         assert_eq!(entries.len(), 0);
+    }
+
+    #[test]
+    fn test_upsert_replaces_existing() {
+        let conn = test_db();
+
+        let entry = make_entry();
+        save_entry(&conn, &entry).expect("first save failed");
+
+        let updated = TotpEntry {
+            issuer: "Updated Corp".to_string(),
+            account: "updated@example.com".to_string(),
+            ..make_entry()
+        };
+        save_entry(&conn, &updated).expect("upsert failed");
+
+        let entries = load_entries(&conn).expect("load_entries failed");
+        assert_eq!(entries.len(), 1, "upsert must not add a duplicate row");
+        assert_eq!(entries[0].issuer, "Updated Corp");
+        assert_eq!(entries[0].account, "updated@example.com");
     }
 
     #[test]
