@@ -64,6 +64,17 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
     )
 }
 
+/// Opens (or creates) a SQLCipher database at an explicit `path` using `key`.
+///
+/// Unlike [`open_db`], this does not consult [`db_path`] and does not create
+/// parent directories. Intended for tests that need a real on-disk file in a
+/// temporary directory.
+pub fn open_db_at(path: impl AsRef<std::path::Path>, key: &str) -> Result<Connection> {
+    let conn = Connection::open(path)?;
+    conn.pragma_update(None, "key", key)?;
+    Ok(conn)
+}
+
 /// Opens the vault database with the hardcoded key and initialises the schema.
 ///
 /// Returns the ready-to-use [`Connection`]. Callers are responsible for
@@ -212,6 +223,27 @@ mod tests {
 
         let entries = load_entries(&conn).expect("load_entries failed");
         assert_eq!(entries.len(), 0);
+    }
+
+    #[test]
+    fn test_upsert_replaces_existing() {
+        let conn = open_memory_db();
+        init_schema(&conn).expect("init_schema failed");
+
+        let entry = make_entry();
+        save_entry(&conn, &entry).expect("first save failed");
+
+        let updated = TotpEntry {
+            issuer: "Updated Corp".to_string(),
+            account: "updated@example.com".to_string(),
+            ..make_entry()
+        };
+        save_entry(&conn, &updated).expect("upsert failed");
+
+        let entries = load_entries(&conn).expect("load_entries failed");
+        assert_eq!(entries.len(), 1, "upsert must not add a duplicate row");
+        assert_eq!(entries[0].issuer, "Updated Corp");
+        assert_eq!(entries[0].account, "updated@example.com");
     }
 
     #[test]

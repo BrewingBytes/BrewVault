@@ -1,9 +1,5 @@
 use dioxus::prelude::*;
 
-pub mod models;
-mod storage;
-mod totp;
-
 const MAIN_CSS: Asset = asset!("/assets/main.css");
 
 fn main() {

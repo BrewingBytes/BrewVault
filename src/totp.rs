@@ -16,7 +16,6 @@ use crate::models::{
     totp::{Algorithm, Digits, TotpEntry},
 };
 
-#[expect(dead_code)]
 /// Returns the number of seconds remaining in the current TOTP window for `entry`.
 ///
 /// The value counts down from `entry.period` to 1, resetting at each window boundary.
@@ -61,7 +60,6 @@ fn generate_code_at(entry: &TotpEntry, time: u64) -> Result<String, TotpError> {
     Ok(totp.generate(time))
 }
 
-#[expect(dead_code)]
 /// Generates the current TOTP code for a vault entry.
 ///
 /// The secret, algorithm, digit count, and period are taken from `entry`.
