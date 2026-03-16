@@ -18,6 +18,7 @@ pub struct TotpEntry {
     pub id: String,
     pub issuer: String,
     pub account: String,
+    pub secret: String,
     pub algorithm: Algorithm,
     pub digits: Digits,
     pub period: u64,
