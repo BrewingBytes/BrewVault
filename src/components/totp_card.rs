@@ -11,6 +11,7 @@ use dioxus::prelude::*;
 use tokio::time::sleep;
 
 use crate::{
+    components::ring::Ring,
     models::totp::TotpEntry,
     totp::{generate_code, seconds_remaining},
 };
@@ -101,6 +102,7 @@ pub fn TotpCard(entry: TotpEntry) -> Element {
     });
 
     let secs_val = secs();
+    let progress = secs_val as f64 / entry.period as f64;
     let avatar = initials(&entry.issuer);
     let color = if secs_val <= 7 {
         "text-danger"
@@ -146,6 +148,9 @@ pub fn TotpCard(entry: TotpEntry) -> Element {
                     { format!("{}s", secs_val) }
                 }
             }
+
+            // Time-remaining ring
+            Ring { progress, warn: secs_val <= 7 }
         }
     }
 }
