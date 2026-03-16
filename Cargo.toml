@@ -4,13 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-dioxus = { version = "0.7", features = ["desktop", "router", "signals"] }
-totp-rs = { version = "5", features = ["gen_secret", "serde_support"] }
+dioxus = { version = "0.7.3", features = ["desktop", "router", "signals"] }
+totp-rs = { version = "5.7.1", features = ["gen_secret", "serde_support"] }
 rusqlite = { version = "0.39", features = ["bundled-sqlcipher"] }
 dirs = "6"
-serde = { version = "1", features = ["derive"] }
-serde_json = "1"
-uuid = { version = "1", features = ["v4"] }
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.149"
+uuid = { version = "1.22.0", features = ["v4"] }
 chrono = "0.4.44"
 
 [profile.release]
