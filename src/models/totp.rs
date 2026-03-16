@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// Most services use six digits; eight is offered by a small number of
 /// providers for extra security.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub enum Digits {
     /// Standard 6-digit code (e.g. `"123456"`).
     Six,
@@ -49,7 +49,7 @@ impl TryFrom<i64> for Digits {
 /// Matches the `algorithm` field in the [`otpauth` URI scheme](https://github.com/google/google-authenticator/wiki/Key-Uri-Format).
 /// SHA-1 is the default and most widely supported; SHA-256 and SHA-512 offer
 /// stronger hashing but require the service to also use them.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub enum Algorithm {
     Sha1,
     Sha256,
@@ -90,7 +90,7 @@ impl TryFrom<&str> for Algorithm {
 /// Each entry maps directly to one row in the `entries` table. The `secret`
 /// field holds a base32-encoded TOTP secret as provided by the service (the
 /// same string encoded in a `otpauth://` QR code).
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct TotpEntry {
     /// Unique identifier for this entry (UUID v4).
     pub id: String,
