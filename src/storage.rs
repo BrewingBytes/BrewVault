@@ -1,3 +1,14 @@
+//! Persistent, encrypted storage for BrewVault TOTP entries.
+//!
+//! All vault data is stored in a SQLCipher-encrypted SQLite database. The
+//! module exposes a process-wide singleton connection ([`DB`]) that is
+//! initialised once at startup via [`init`] and then accessed through the
+//! [`with_db`] helper.
+//!
+//! # Encryption
+//! The database key is currently hardcoded (`DB_KEY`). A master-password flow
+//! is deferred to v2.
+
 use std::{
     path::PathBuf,
     sync::{Mutex, MutexGuard},
@@ -7,9 +18,16 @@ use rusqlite::{Connection, Result, params};
 
 use crate::models::totp::{Algorithm, Digits, TotpEntry};
 
+/// Process-wide SQLCipher connection, initialised by [`init`].
 static DB: Mutex<Option<Connection>> = Mutex::new(None);
+
+/// Hardcoded encryption key used until a master-password flow is introduced.
 const DB_KEY: &str = "brew-vault-hardcoded-key";
 
+/// Returns the platform-appropriate path to the vault database file.
+///
+/// On macOS this resolves to
+/// `~/Library/Application Support/Brew Vault/vault.db`.
 pub fn db_path() -> PathBuf {
     dirs::data_dir()
         .expect("could not determine data directory")
@@ -17,6 +35,10 @@ pub fn db_path() -> PathBuf {
         .join("vault.db")
 }
 
+/// Opens (or creates) the SQLCipher database at [`db_path`] using `key`.
+///
+/// The parent directory is created automatically if it does not exist.
+/// Returns an error if the file cannot be opened or if the key pragma fails.
 pub fn open_db(key: &str) -> Result<Connection> {
     let path = db_path();
     if let Some(parent) = path.parent() {
@@ -27,6 +49,9 @@ pub fn open_db(key: &str) -> Result<Connection> {
     Ok(conn)
 }
 
+/// Creates the `entries` table if it does not already exist.
+///
+/// Safe to call multiple times — uses `CREATE TABLE IF NOT EXISTS`.
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS entries (
@@ -41,6 +66,11 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
     )
 }
 
+/// Initialises the global database connection.
+///
+/// Opens the vault file with [`DB_KEY`], runs [`init_schema`], and stores the
+/// connection in the [`DB`] static. Must be called once before any other
+/// storage function is used (typically at the top of `main`).
 pub fn init() -> Result<()> {
     let conn = open_db(DB_KEY)?;
     init_schema(&conn)?;
@@ -49,6 +79,9 @@ pub fn init() -> Result<()> {
     Ok(())
 }
 
+/// Loads all TOTP entries from the database.
+///
+/// Returns a [`Vec`] of [`TotpEntry`] in insertion order.
 pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
     let mut stmt = conn.prepare(
         "SELECT id, issuer, account, secret, algorithm, digits, period FROM entries",
@@ -78,6 +111,10 @@ pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
     Ok(entries)
 }
 
+/// Inserts or replaces a TOTP entry in the database.
+///
+/// Uses `INSERT OR REPLACE` so calling this with an existing `entry.id`
+/// acts as an upsert.
 pub fn save_entry(conn: &Connection, entry: &TotpEntry) -> Result<()> {
     conn.execute(
         "INSERT OR REPLACE INTO entries (id, issuer, account, secret, algorithm, digits, period)
@@ -95,11 +132,16 @@ pub fn save_entry(conn: &Connection, entry: &TotpEntry) -> Result<()> {
     Ok(())
 }
 
+/// Deletes the entry with the given `id`. No-ops silently if not found.
 pub fn delete_entry(conn: &Connection, id: &str) -> Result<()> {
     conn.execute("DELETE FROM entries WHERE id = ?1", params![id])?;
     Ok(())
 }
 
+/// Locks the global [`DB`] mutex and passes the connection to `f`.
+///
+/// # Panics
+/// Panics if [`init`] has not been called or if the mutex is poisoned.
 pub fn with_db<F, T>(f: F) -> T
 where
     F: FnOnce(&Connection) -> T,
