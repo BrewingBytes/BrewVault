@@ -24,6 +24,30 @@ pub fn IGrid() -> Element {
     }
 }
 
+/// Magnifier/search icon.
+///
+/// `class` controls size and color via Tailwind. `stroke="currentColor"` means
+/// the stroke colour follows the CSS `color` property (use `text-*` classes).
+/// Default: `w-7 h-7 text-[#252525]` — sized for empty states.
+#[component]
+pub fn IMagnifier(
+    #[props(default = "w-7 h-7 text-[#252525]".to_string())] class: String,
+) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            circle { cx: "11", cy: "11", r: "8" }
+            line { x1: "21", y1: "21", x2: "16.65", y2: "16.65" }
+        }
+    }
+}
+
 /// Gear/cog icon used for the Settings nav item.
 #[component]
 pub fn ICog() -> Element {

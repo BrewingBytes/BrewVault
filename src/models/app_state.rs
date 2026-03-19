@@ -11,7 +11,7 @@ use dioxus::prelude::*;
 use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
-use crate::models::{error::TotpError, pages::AppPage, totp::TotpEntry};
+use crate::models::{error::TotpError, totp::TotpEntry};
 use crate::storage;
 
 pub static APP_STATE: GlobalSignal<AppState> = GlobalSignal::new(AppState::new);
@@ -28,7 +28,6 @@ pub static APP_STATE: GlobalSignal<AppState> = GlobalSignal::new(AppState::new);
 #[derive(Serialize, Deserialize, Clone)]
 pub struct AppState {
     entries: Vec<TotpEntry>,
-    show_page: AppPage,
     /// Open, encrypted vault connection. `None` only when the value was
     /// produced by deserialisation — in normal operation `new()` always
     /// provides a live connection or panics.
@@ -44,7 +43,6 @@ impl AppState {
         let entries = storage::load_entries(&conn)?;
         Ok(Self {
             entries,
-            show_page: AppPage::default(),
             db: Some(Arc::new(Mutex::new(conn))),
         })
     }
@@ -80,19 +78,9 @@ impl AppState {
         Ok(())
     }
 
-    /// Switches the active UI page.
-    pub fn set_page(&mut self, page: AppPage) {
-        self.show_page = page;
-    }
-
     /// Returns a slice of all vault entries currently held in memory.
     pub fn get_entries(&self) -> &[TotpEntry] {
         &self.entries
-    }
-
-    /// Returns the currently active UI page.
-    pub fn get_current_page(&self) -> &AppPage {
-        &self.show_page
     }
 }
 

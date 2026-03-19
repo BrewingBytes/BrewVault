@@ -59,7 +59,8 @@ pub fn init_schema(conn: &Connection) -> Result<()> {
             secret    TEXT NOT NULL,
             algorithm TEXT NOT NULL DEFAULT 'SHA1',
             digits    INTEGER NOT NULL DEFAULT 6,
-            period    INTEGER NOT NULL DEFAULT 30
+            period    INTEGER NOT NULL DEFAULT 30,
+            `group`   TEXT DEFAULT NULL
         );",
     )
 }
@@ -89,13 +90,15 @@ pub fn open_and_init() -> Result<Connection> {
 ///
 /// Returns a [`Vec`] of [`TotpEntry`] with no guaranteed ordering.
 pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
-    let mut stmt =
-        conn.prepare("SELECT id, issuer, account, secret, algorithm, digits, period FROM entries")?;
+    let mut stmt = conn.prepare(
+        "SELECT id, issuer, account, secret, algorithm, digits, period, `group` FROM entries",
+    )?;
     let entries = stmt
         .query_map([], |row| {
             let algorithm_str: String = row.get(4)?;
             let digits_i64: i64 = row.get(5)?;
             let period: i64 = row.get(6)?;
+            let group: Option<String> = row.get(7)?;
 
             let algorithm = Algorithm::try_from(algorithm_str.as_str()).map_err(|e| {
                 rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, e.into())
@@ -127,6 +130,7 @@ pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
                 algorithm,
                 digits,
                 period,
+                group,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
@@ -140,8 +144,8 @@ pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
 /// acts as an upsert.
 pub fn save_entry(conn: &Connection, entry: &TotpEntry) -> Result<()> {
     conn.execute(
-        "INSERT OR REPLACE INTO entries (id, issuer, account, secret, algorithm, digits, period)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        "INSERT OR REPLACE INTO entries (id, issuer, account, secret, algorithm, digits, period, `group`)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
         params![
             entry.id,
             entry.issuer,
@@ -150,6 +154,7 @@ pub fn save_entry(conn: &Connection, entry: &TotpEntry) -> Result<()> {
             entry.algorithm.as_str(),
             entry.digits.as_i64(),
             entry.period as i64,
+            entry.group.as_deref(),
         ],
     )?;
     Ok(())
@@ -183,6 +188,7 @@ mod tests {
             algorithm: Algorithm::Sha1,
             digits: Digits::Six,
             period: 30,
+            group: None,
         }
     }
 
@@ -241,6 +247,33 @@ mod tests {
         assert_eq!(entries.len(), 1, "upsert must not add a duplicate row");
         assert_eq!(entries[0].issuer, "Updated Corp");
         assert_eq!(entries[0].account, "updated@example.com");
+    }
+
+    #[test]
+    fn test_group_none_round_trips() {
+        let conn = test_db();
+
+        let entry = make_entry(); // group: None
+        save_entry(&conn, &entry).expect("save_entry failed");
+
+        let entries = load_entries(&conn).expect("load_entries failed");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].group, None);
+    }
+
+    #[test]
+    fn test_group_some_round_trips() {
+        let conn = test_db();
+
+        let entry = TotpEntry {
+            group: Some("Work".to_string()),
+            ..make_entry()
+        };
+        save_entry(&conn, &entry).expect("save_entry failed");
+
+        let entries = load_entries(&conn).expect("load_entries failed");
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].group, Some("Work".to_string()));
     }
 
     #[test]

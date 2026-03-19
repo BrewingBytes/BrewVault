@@ -15,6 +15,7 @@ fn make_entry(n: u8) -> TotpEntry {
         algorithm: Algorithm::Sha1,
         digits: Digits::Six,
         period: 30,
+        group: None,
     }
 }
 
