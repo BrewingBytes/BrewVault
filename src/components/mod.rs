@@ -7,3 +7,4 @@ pub mod input;
 pub mod ring;
 pub mod section_label;
 pub mod text_divider;
+pub mod toast;

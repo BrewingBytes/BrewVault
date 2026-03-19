@@ -16,7 +16,10 @@ use dioxus::prelude::*;
 use tokio::time::sleep;
 
 use crate::{
-    components::ring::Ring,
+    components::{
+        ring::Ring,
+        toast::{TOAST, ToastData, next_toast_id},
+    },
     models::totp::TotpEntry,
     totp::{format_code, generate_code, initials, seconds_remaining},
 };
@@ -40,6 +43,27 @@ fn icon_colors(issuer: &str) -> (&'static str, &'static str) {
     issuer.hash(&mut hasher);
     let idx = (hasher.finish() as usize) % PALETTE.len();
     PALETTE[idx]
+}
+
+/// Returns the `ToastData` for a successful copy action.
+fn copied_toast() -> ToastData {
+    ToastData {
+        id: next_toast_id(),
+        text: "Copied".to_string(),
+        bg_color: "#0f1825".to_string(),
+        text_color: "#4f8ef7".to_string(),
+    }
+}
+
+fn copy_code(code: Signal<String>, mut copied: Signal<bool>) {
+    let raw_code = code().replace(' ', "");
+    spawn(async move {
+        let js = format!("navigator.clipboard.writeText('{raw_code}')");
+        if dioxus::document::eval(&js).await.is_ok() {
+            copied.set(true);
+            *TOAST.write() = Some(copied_toast());
+        }
+    });
 }
 
 /// A live TOTP account row.
@@ -80,15 +104,10 @@ pub fn AccountRow(entry: TotpEntry) -> Element {
         }
     });
 
-    // Reset copied highlight 1.6s after it is set.
-    use_future(move || async move {
-        loop {
-            if copied() {
-                sleep(Duration::from_millis(1600)).await;
-                copied.set(false);
-            } else {
-                sleep(Duration::from_millis(50)).await;
-            }
+    // Reset copied highlight when the toast dismisses — guaranteed synchronization.
+    use_effect(move || {
+        if TOAST.read().is_none() {
+            copied.set(false);
         }
     });
 
@@ -125,24 +144,10 @@ pub fn AccountRow(entry: TotpEntry) -> Element {
             tabindex: "0",
             onmouseenter: move |_| hovered.set(true),
             onmouseleave: move |_| hovered.set(false),
-            onclick: move |_| {
-                let raw_code = code().replace(' ', "");
-                spawn(async move {
-                    let js = format!("navigator.clipboard.writeText('{raw_code}')");
-                    if dioxus::document::eval(&js).await.is_ok() {
-                        copied.set(true);
-                    }
-                });
-            },
+            onclick: move |_| copy_code(code, copied),
             onkeydown: move |e| {
                 if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
-                    let raw_code = code().replace(' ', "");
-                    spawn(async move {
-                        let js = format!("navigator.clipboard.writeText('{raw_code}')");
-                        if dioxus::document::eval(&js).await.is_ok() {
-                            copied.set(true);
-                        }
-                    });
+                    copy_code(code, copied);
                 }
             },
 
@@ -177,16 +182,9 @@ pub fn AccountRow(entry: TotpEntry) -> Element {
                     class: "font-mono text-xl font-bold tracking-widest {code_color}",
                     { format_code(&code()) }
                 }
-                if copied() {
-                    span {
-                        class: "text-[10px] tabular-nums text-accent/50",
-                        "copied"
-                    }
-                } else {
-                    span {
-                        class: "text-[10px] tabular-nums text-[#2a2a2a]",
-                        "{secs_val}s"
-                    }
+                span {
+                    class: "text-[10px] tabular-nums text-[#2a2a2a]",
+                    "{secs_val}s"
                 }
             }
 

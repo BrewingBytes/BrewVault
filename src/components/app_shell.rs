@@ -1,4 +1,5 @@
 use crate::components::bottom_nav::BottomNav;
+use crate::components::toast::Toast;
 use crate::routes::Route;
 use dioxus::prelude::*;
 
@@ -13,11 +14,12 @@ pub fn AppShell() -> Element {
 
     rsx! {
         div {
-            class: "h-screen bg-base flex flex-col overflow-hidden",
+            class: "h-screen bg-base flex flex-col overflow-hidden relative",
             div { class: "flex-1 overflow-hidden", Outlet::<Route> {} }
             if show_nav {
                 BottomNav {}
             }
+            Toast {}
         }
     }
 }
