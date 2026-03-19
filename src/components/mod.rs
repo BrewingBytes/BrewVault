@@ -1,8 +1,9 @@
+pub mod account_row;
 pub mod app_shell;
 pub mod bottom_nav;
 pub mod button;
 pub mod icons;
 pub mod input;
 pub mod ring;
+pub mod section_label;
 pub mod text_divider;
-pub mod totp_card;

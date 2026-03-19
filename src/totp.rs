@@ -16,6 +16,50 @@ use crate::models::{
     totp::{Algorithm, Digits, TotpEntry},
 };
 
+/// Formats a raw TOTP digit string for display.
+///
+/// Inserts a space at the midpoint so the code is easier to read at a glance.
+///
+/// # Examples
+///
+/// ```text
+/// "123456"   → "123 456"
+/// "12345678" → "1234 5678"
+/// ```
+pub fn format_code(code: &str) -> String {
+    let mid = code.len() / 2;
+    format!("{} {}", &code[..mid], &code[mid..])
+}
+
+/// Derives up to two uppercase initials from an issuer name.
+///
+/// - Multi-word names use the first letter of each of the first two words:
+///   `"Brewing Bytes"` → `"BB"`.
+/// - Single-word names use the first two characters: `"GitHub"` → `"GI"`,
+///   `"X"` → `"X"`.
+pub fn initials(issuer: &str) -> String {
+    let mut words = issuer.split_whitespace();
+    match (words.next(), words.next()) {
+        (Some(a), Some(b)) => format!(
+            "{}{}",
+            a.chars()
+                .next()
+                .unwrap_or_default()
+                .to_uppercase()
+                .next()
+                .unwrap_or_default(),
+            b.chars()
+                .next()
+                .unwrap_or_default()
+                .to_uppercase()
+                .next()
+                .unwrap_or_default(),
+        ),
+        (Some(a), None) => a.chars().take(2).flat_map(|c| c.to_uppercase()).collect(),
+        _ => String::new(),
+    }
+}
+
 /// Returns the number of seconds remaining in the current TOTP window for `entry`.
 ///
 /// The value counts down from `entry.period` to 1, resetting at each window boundary.
@@ -176,5 +220,35 @@ mod tests {
             29,
             "one second after boundary, 29 seconds should remain"
         );
+    }
+
+    #[test]
+    fn test_format_code_six_digits() {
+        assert_eq!(format_code("123456"), "123 456");
+    }
+
+    #[test]
+    fn test_format_code_eight_digits() {
+        assert_eq!(format_code("12345678"), "1234 5678");
+    }
+
+    #[test]
+    fn test_initials_single_word() {
+        assert_eq!(initials("GitHub"), "GI");
+    }
+
+    #[test]
+    fn test_initials_single_char() {
+        assert_eq!(initials("X"), "X");
+    }
+
+    #[test]
+    fn test_initials_two_words() {
+        assert_eq!(initials("Brewing Bytes"), "BB");
+    }
+
+    #[test]
+    fn test_initials_empty() {
+        assert_eq!(initials(""), "");
     }
 }
