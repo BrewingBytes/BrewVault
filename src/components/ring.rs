@@ -22,7 +22,7 @@ const CIRCUMFERENCE: f64 = 2.0 * std::f64::consts::PI * 13.0; // ≈ 81.681
 /// A small circular progress ring.
 ///
 /// Renders a 32×32 SVG ring that fills clockwise from the top according to
-/// `progress`.  Intended to be embedded inside a [`TotpCard`] to show how
+/// `progress`.  Intended to be embedded inside an [`AccountRow`] to show how
 /// much time remains in the current TOTP window.
 ///
 /// # Props
