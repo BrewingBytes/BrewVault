@@ -3,8 +3,9 @@ use std::time::Duration;
 use dioxus::prelude::*;
 use tokio::time::sleep;
 
-use crate::components::add_button::AddButton;
+use crate::components::button::{Button, ButtonVariant};
 use crate::models::app_state::APP_STATE;
+use crate::routes::Route;
 
 /// Returns the number of seconds remaining in the current 30-second TOTP window.
 fn global_seconds_remaining() -> u8 {
@@ -15,10 +16,11 @@ fn global_seconds_remaining() -> u8 {
 }
 
 /// Header bar for the Accounts view showing the title, account count,
-/// a live TOTP refresh countdown, and the [`AddButton`].
+/// a live TOTP refresh countdown, and an add button.
 #[component]
 fn AccountsHeader() -> Element {
     let mut secs = use_signal(global_seconds_remaining);
+    let nav = use_navigator();
 
     use_future(move || async move {
         loop {
@@ -47,7 +49,11 @@ fn AccountsHeader() -> Element {
                         span { class: "{secs_color}", "{secs_val}s" }
                     }
                 }
-                AddButton {}
+                Button {
+                    label: "+",
+                    variant: ButtonVariant::Round,
+                    on_click: move |_| { nav.push(Route::Add {}); },
+                }
             }
         }
     }
