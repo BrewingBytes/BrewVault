@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 
+use chrono::Utc;
 use dioxus::prelude::*;
 use tokio::time::sleep;
 
@@ -59,19 +60,21 @@ pub fn AccountRow(entry: TotpEntry) -> Element {
     let mut hovered = use_signal(|| false);
     let mut copied = use_signal(|| false);
 
-    // 1-second tick: update countdown and regenerate code at window boundary.
+    // 1-second tick: update countdown and regenerate code when the window changes.
     let future_entry = Arc::new(entry.clone());
     use_future(move || {
         let entry = future_entry.clone();
         async move {
+            let mut last_window = Utc::now().timestamp() as u64 / entry.period;
             loop {
                 sleep(Duration::from_secs(1)).await;
-                let s = seconds_remaining(&entry);
-                secs.set(s);
-                if s == entry.period as u8
-                    && let Ok(c) = generate_code(&entry)
-                {
-                    code.set(c);
+                secs.set(seconds_remaining(&entry));
+                let window = Utc::now().timestamp() as u64 / entry.period;
+                if window != last_window {
+                    last_window = window;
+                    if let Ok(c) = generate_code(&entry) {
+                        code.set(c);
+                    }
                 }
             }
         }

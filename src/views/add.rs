@@ -35,6 +35,7 @@ use crate::{
         totp::{Algorithm, Digits, TotpEntry},
     },
     routes::Route,
+    totp::{is_valid_secret, normalize_secret},
 };
 
 /// View for adding a new TOTP account manually.
@@ -45,18 +46,23 @@ pub fn Add() -> Element {
     let secret = use_signal(String::new);
     let nav = use_navigator();
 
-    let can_submit =
-        !account().trim().is_empty() && !issuer().trim().is_empty() && !secret().trim().is_empty();
+    let secret_val = secret().trim().to_uppercase();
+    let secret_error = !secret_val.is_empty() && !is_valid_secret(&secret_val);
+    let can_submit = !account().trim().is_empty()
+        && !issuer().trim().is_empty()
+        && !secret_val.is_empty()
+        && !secret_error;
 
     let handle_submit = move |_| {
         let entry = TotpEntry {
             id: uuid::Uuid::new_v4().to_string(),
             issuer: issuer().trim().to_string(),
             account: account().trim().to_string(),
-            secret: secret().trim().to_uppercase(),
+            secret: normalize_secret(&secret().trim().to_uppercase()),
             algorithm: Algorithm::Sha1,
             digits: Digits::Six,
             period: 30,
+            group: None,
         };
         let _ = APP_STATE.write().add_entry(entry);
         nav.push(Route::Accounts {});
@@ -137,6 +143,12 @@ pub fn Add() -> Element {
                     placeholder: "JBSWY3DPEHPK3PXP",
                     value: secret,
                     mono: true,
+                }
+                if secret_error {
+                    span {
+                        class: "text-xs text-danger mt-[-10px]",
+                        "Invalid secret — must be a valid base32 string (e.g. JBSWY3DPEHPK3PXP)"
+                    }
                 }
             }
 

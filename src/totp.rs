@@ -69,6 +69,24 @@ pub fn seconds_remaining(entry: &TotpEntry) -> u8 {
     (period - (Utc::now().timestamp() as u64 % period)) as u8
 }
 
+/// Normalizes a base32 secret by stripping trailing `=` padding characters.
+///
+/// `totp_rs` decodes base32 with `padding: false`, so passing `=` characters
+/// causes decode failures. Keys exported from some apps include padding;
+/// stripping it makes them accepted.
+pub fn normalize_secret(secret: &str) -> String {
+    secret.trim_end_matches('=').to_string()
+}
+
+/// Returns `true` if `secret` is a non-empty, valid base32-encoded string
+/// that can be used as a TOTP secret.
+pub fn is_valid_secret(secret: &str) -> bool {
+    !secret.is_empty()
+        && totp_rs::Secret::Encoded(normalize_secret(secret))
+            .to_bytes()
+            .is_ok()
+}
+
 /// Generates a TOTP code for `entry` at a specific Unix timestamp.
 ///
 /// `time` is a Unix timestamp in seconds and determines which 30-second window
@@ -79,7 +97,7 @@ pub fn seconds_remaining(entry: &TotpEntry) -> u8 {
 /// Returns [`TotpError::TOTPGenerationError`] if `entry.secret` is not valid base32
 /// or if the underlying TOTP construction fails.
 fn generate_code_at(entry: &TotpEntry, time: u64) -> Result<String, TotpError> {
-    let secret_bytes = totp_rs::Secret::Encoded(entry.secret.clone())
+    let secret_bytes = totp_rs::Secret::Encoded(normalize_secret(&entry.secret))
         .to_bytes()
         .map_err(|_| TotpError::TOTPGenerationError)?;
 
@@ -88,7 +106,7 @@ fn generate_code_at(entry: &TotpEntry, time: u64) -> Result<String, TotpError> {
         Digits::Eight => 8,
     };
 
-    let totp = TOTP::new(
+    let totp = TOTP::new_unchecked(
         match entry.algorithm {
             Algorithm::Sha1 => totp_rs::Algorithm::SHA1,
             Algorithm::Sha256 => totp_rs::Algorithm::SHA256,
@@ -98,8 +116,7 @@ fn generate_code_at(entry: &TotpEntry, time: u64) -> Result<String, TotpError> {
         1,
         entry.period,
         secret_bytes,
-    )
-    .map_err(|_| TotpError::TOTPGenerationError)?;
+    );
 
     Ok(totp.generate(time))
 }
@@ -135,6 +152,7 @@ mod tests {
             algorithm,
             digits,
             period: 30,
+            group: None,
         }
     }
 
@@ -250,5 +268,67 @@ mod tests {
     #[test]
     fn test_initials_empty() {
         assert_eq!(initials(""), "");
+    }
+
+    #[test]
+    fn test_is_valid_secret_with_padding() {
+        // Some apps export keys with trailing '=' padding; stripping makes them valid.
+        let key = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"; // 32 chars, 20 bytes — valid without padding
+        let padded = format!("{}======", key); // extra '=' that would break totp_rs
+        assert!(is_valid_secret(&padded));
+    }
+
+    #[test]
+    fn test_generate_code_padded_secret() {
+        // Key with trailing '=' padding — normalize_secret strips them before decoding.
+        let key = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        let padded = format!("{}======", key);
+        let entry = make_entry(Algorithm::Sha1, Digits::Six, &padded);
+        let code = generate_code(&entry).unwrap();
+        assert!(!code.is_empty());
+        assert!(code.chars().all(|c| c.is_ascii_digit()));
+    }
+
+    #[test]
+    fn test_normalize_secret_strips_padding() {
+        assert_eq!(
+            normalize_secret("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ======"),
+            "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ"
+        );
+    }
+
+    #[test]
+    fn test_normalize_secret_no_op_without_padding() {
+        let key = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+        assert_eq!(normalize_secret(key), key);
+    }
+
+    #[test]
+    fn test_normalize_secret_various_lengths() {
+        // Keys with any number of trailing '=' chars should be stripped cleanly.
+        for pads in [0usize, 1, 2, 3, 4, 5, 6] {
+            let base = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
+            let key = format!("{}{}", base, "=".repeat(pads));
+            assert_eq!(
+                normalize_secret(&key),
+                base,
+                "failed for {pads} padding chars"
+            );
+        }
+    }
+
+    #[test]
+    fn test_generate_code_short_secret() {
+        // 16-char key decodes to only 10 bytes (80 bits), below the RFC 4226 minimum.
+        // We use new_unchecked so real-world short keys still produce codes.
+        let entry = make_entry(Algorithm::Sha1, Digits::Six, "I65VU7K5ZQL7WB4E");
+        let code = generate_code(&entry).unwrap();
+        assert_eq!(code.len(), 6);
+        assert!(code.chars().all(|c| c.is_ascii_digit()));
+    }
+
+    #[test]
+    fn test_is_valid_secret_invalid_chars_still_rejected() {
+        assert!(!is_valid_secret("not-base32!!!"));
     }
 }

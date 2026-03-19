@@ -106,4 +106,7 @@ pub struct TotpEntry {
     pub digits: Digits,
     /// TOTP window duration in seconds (typically `30`).
     pub period: u64,
+    /// Optional group label for organising entries (e.g. `"Personal"`, `"Work"`, `"Dev"`).
+    /// `None` until the user assigns a group.
+    pub group: Option<String>,
 }
