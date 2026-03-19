@@ -1,10 +1,13 @@
-use std::time::Duration;
+use std::{collections::BTreeMap, time::Duration};
 
 use dioxus::prelude::*;
 use tokio::time::sleep;
 
+use crate::components::account_row::AccountRow;
 use crate::components::button::{Button, ButtonVariant};
+use crate::components::section_label::SectionLabel;
 use crate::models::app_state::APP_STATE;
+use crate::models::totp::TotpEntry;
 use crate::routes::Route;
 
 /// Returns the number of seconds remaining in the current 30-second TOTP window.
@@ -106,21 +109,56 @@ fn SearchBar(query: Signal<String>) -> Element {
 /// Main accounts list view.
 ///
 /// Displays the [`AccountsHeader`], a [`SearchBar`], and the list of TOTP
-/// entries. Shows an empty-state message when no accounts have been added yet.
+/// entries grouped alphabetically by issuer. Shows an empty-state message when
+/// no accounts have been added yet (or no entries match the search query).
 #[component]
 pub fn Accounts() -> Element {
     let query = use_signal(String::new);
 
-    let entries = APP_STATE.read().get_entries().len();
+    let entries = APP_STATE.read().get_entries().to_vec();
+
+    let filtered: Vec<TotpEntry> = entries
+        .iter()
+        .filter(|e| {
+            let q = query().to_lowercase();
+            q.is_empty()
+                || e.issuer.to_lowercase().contains(&q)
+                || e.account.to_lowercase().contains(&q)
+        })
+        .cloned()
+        .collect();
+
+    let groups: BTreeMap<char, Vec<TotpEntry>> =
+        filtered.into_iter().fold(BTreeMap::new(), |mut m, e| {
+            let key = e
+                .issuer
+                .chars()
+                .next()
+                .unwrap_or('#')
+                .to_uppercase()
+                .next()
+                .unwrap_or('#');
+            m.entry(key).or_default().push(e);
+            m
+        });
 
     rsx! {
         div { class: "h-full flex flex-col",
             AccountsHeader {}
             SearchBar { query }
-            if entries == 0 {
+            if groups.is_empty() {
                 div { class: "flex-1 flex flex-col items-center justify-center gap-2 text-muted",
                     span { class: "text-sm font-medium text-primary", "No accounts yet" }
                     span { class: "text-xs text-center", "Press the + button to add your first account" }
+                }
+            } else {
+                div { class: "flex-1 overflow-y-auto px-6 pb-4",
+                    for (letter, group) in groups {
+                        SectionLabel { label: letter.to_string() }
+                        for entry in group {
+                            AccountRow { entry }
+                        }
+                    }
                 }
             }
         }

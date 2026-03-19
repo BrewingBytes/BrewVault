@@ -13,52 +13,8 @@ use tokio::time::sleep;
 use crate::{
     components::ring::Ring,
     models::totp::TotpEntry,
-    totp::{generate_code, seconds_remaining},
+    totp::{format_code, generate_code, initials, seconds_remaining},
 };
-
-/// Formats a raw TOTP digit string for display.
-///
-/// Inserts a space at the midpoint so the code is easier to read at a glance.
-///
-/// # Examples
-///
-/// ```text
-/// "123456"   → "123 456"
-/// "12345678" → "1234 5678"
-/// ```
-fn format_code(code: &str) -> String {
-    let mid = code.len() / 2;
-    format!("{} {}", &code[..mid], &code[mid..])
-}
-
-/// Derives up to two uppercase initials from an issuer name.
-///
-/// - Multi-word names use the first letter of each of the first two words:
-///   `"Brewing Bytes"` → `"BB"`.
-/// - Single-word names use the first two characters: `"GitHub"` → `"GI"`,
-///   `"X"` → `"X"`.
-fn initials(issuer: &str) -> String {
-    let mut words = issuer.split_whitespace();
-    match (words.next(), words.next()) {
-        (Some(a), Some(b)) => format!(
-            "{}{}",
-            a.chars()
-                .next()
-                .unwrap_or_default()
-                .to_uppercase()
-                .next()
-                .unwrap_or_default(),
-            b.chars()
-                .next()
-                .unwrap_or_default()
-                .to_uppercase()
-                .next()
-                .unwrap_or_default(),
-        ),
-        (Some(a), None) => a.chars().take(2).flat_map(|c| c.to_uppercase()).collect(),
-        _ => String::new(),
-    }
-}
 
 /// A live TOTP credential card.
 ///
