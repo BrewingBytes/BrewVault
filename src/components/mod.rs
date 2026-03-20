@@ -6,5 +6,8 @@ pub mod icons;
 pub mod input;
 pub mod ring;
 pub mod section_label;
+pub mod setting_row;
+pub mod settings_divider;
 pub mod text_divider;
 pub mod toast;
+pub mod toggle;

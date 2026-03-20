@@ -48,6 +48,75 @@ pub fn IMagnifier(
     }
 }
 
+/// Chevron pointing right — used as a navigation indicator in settings rows.
+#[component]
+pub fn IChevronRight(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M9 18l6-6-6-6" }
+        }
+    }
+}
+
+/// Moon icon — used for dark mode setting.
+#[component]
+pub fn IMoon(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" }
+        }
+    }
+}
+
+/// Shield icon — used for security settings.
+#[component]
+pub fn IShield(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" }
+        }
+    }
+}
+
+/// Trash icon — used for destructive actions.
+#[component]
+pub fn ITrash(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M3 6h18" }
+            path { d: "M8 6V4h8v2M19 6l-1 14H6L5 6" }
+        }
+    }
+}
+
 /// Gear/cog icon used for the Settings nav item.
 #[component]
 pub fn ICog() -> Element {
