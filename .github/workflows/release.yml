@@ -3,7 +3,7 @@ name: Release
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
 
 env:
   CARGO_TERM_COLOR: always
@@ -64,21 +64,21 @@ jobs:
         uses: cargo-bins/cargo-binstall@v1.17.7
 
       - name: Install Dioxus CLI
-        run: cargo binstall dioxus-cli@0.7.3 --no-confirm
+        run: cargo binstall dioxus-cli@0.7.3 --no-confirm --force || cargo install dioxus-cli@0.7.3 --locked
 
       - name: Build release bundle
         uses: nick-fields/retry@v4
         with:
           timeout_minutes: 20
           max_attempts: 3
-          command: dx bundle --release
+          command: dx bundle --release --verbose
 
       - name: Locate, rename, and checksum artifact
         run: |
-          DMG=$(find . -name "*.dmg" -not -path "./target/*" | head -1)
+          DMG=$(find ./target/dx -name "*.dmg" | head -1)
           if [ -z "$DMG" ]; then
             echo "ERROR: No .dmg artifact found after dx bundle. Searching for any bundles:"
-            find . \( -name "*.dmg" -o -name "*.app" \) | head -20 || true
+            find ./target/dx \( -name "*.dmg" -o -name "*.app" \) | head -20 || true
             exit 1
           fi
           VERSION=${GITHUB_REF_NAME#v}
@@ -96,10 +96,18 @@ jobs:
             ${{ env.ARTIFACT }}.sha256
 
   # ─── Job 3: Linux build ─────────────────────────────────────────────────────
+  # Uses `dx build` (not `dx bundle`) to avoid the broken AppImage bundler.
+  # dx bundle on Linux (AppImage via linuxdeploy) is broken in dioxus-cli 0.7.x:
+  #   https://github.com/DioxusLabs/dioxus/issues/3426
+  # Additionally, strip=true in Cargo.toml causes dx to lose assets entirely:
+  #   https://github.com/DioxusLabs/dioxus/issues/4874
+  # We override strip via CARGO_PROFILE_RELEASE_STRIP=none and ship a tarball instead.
   build-linux:
     name: Build (Linux)
     needs: validate
     runs-on: ubuntu-latest
+    env:
+      CARGO_PROFILE_RELEASE_STRIP: none
     steps:
       - uses: actions/checkout@v6
 
@@ -130,26 +138,26 @@ jobs:
         uses: cargo-bins/cargo-binstall@v1.17.7
 
       - name: Install Dioxus CLI
-        run: cargo binstall dioxus-cli@0.7.3 --no-confirm
+        run: cargo binstall dioxus-cli@0.7.3 --no-confirm --force || cargo install dioxus-cli@0.7.3 --locked
 
-      - name: Build release bundle
+      - name: Build release
         uses: nick-fields/retry@v4
         with:
           timeout_minutes: 20
           max_attempts: 3
-          command: dx bundle --release
+          command: dx build --release
 
-      - name: Locate, rename, and checksum artifact
+      - name: Package artifact as tarball
         run: |
-          APPIMAGE=$(find . -name "*.AppImage" -not -path "./target/*" | head -1)
-          if [ -z "$APPIMAGE" ]; then
-            echo "ERROR: No .AppImage artifact found after dx bundle. Searching for bundles:"
-            find . \( -name "*.AppImage" -o -name "*.deb" \) | head -20 || true
+          APP_DIR=$(find ./target/dx -maxdepth 5 -type d -name "app" | grep -E "release/linux" | head -1)
+          if [ -z "$APP_DIR" ]; then
+            echo "ERROR: No app directory found after dx build. Available paths:"
+            find ./target/dx -type d | head -30 || true
             exit 1
           fi
           VERSION=${GITHUB_REF_NAME#v}
-          ARTIFACT="brewvault-v${VERSION}-linux.AppImage"
-          cp "$APPIMAGE" "$ARTIFACT"
+          ARTIFACT="brewvault-v${VERSION}-linux.tar.gz"
+          tar -czf "$ARTIFACT" -C "$(dirname "$APP_DIR")" app
           openssl dgst -sha256 -r "$ARTIFACT" > "${ARTIFACT}.sha256"
           echo "ARTIFACT=$ARTIFACT" >> "$GITHUB_ENV"
 
@@ -172,6 +180,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Install OpenSSL (MSVC-compatible via vcpkg)
+        shell: pwsh
+        run: |
+          vcpkg install openssl:x64-windows-static
+          echo "OPENSSL_DIR=C:/vcpkg/installed/x64-windows-static" >> $env:GITHUB_ENV
+          echo "OPENSSL_STATIC=1" >> $env:GITHUB_ENV
+
       - name: Install Tailwind CSS CLI
         run: |
           curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-windows-x64.exe
@@ -186,10 +201,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@v1.17.7
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf \
+            "https://github.com/cargo-bins/cargo-binstall/releases/latest/download/cargo-binstall-x86_64-pc-windows-msvc.zip" \
+            -o binstall.zip
+          unzip binstall.zip cargo-binstall.exe
+          mv cargo-binstall.exe ~/.cargo/bin/
 
       - name: Install Dioxus CLI
-        run: cargo binstall dioxus-cli@0.7.3 --no-confirm
+        run: cargo binstall dioxus-cli@0.7.3 --no-confirm --force
 
       - name: Build release bundle
         uses: nick-fields/retry@v4
@@ -197,11 +217,11 @@ jobs:
           timeout_minutes: 20
           max_attempts: 3
           shell: bash
-          command: dx bundle --release
+          command: dx bundle --release --verbose
 
       - name: Locate, rename, and checksum artifact
         run: |
-          MSI=$(find . -name "*.msi" -not -path "./target/*" | head -1)
+          MSI=$(find ./target/dx -name "*.msi" | head -1)
           if [ -z "$MSI" ]; then
             echo "ERROR: No .msi artifact found after dx bundle. Searching for bundles:"
             find . \( -name "*.msi" -o -name "*.exe" -path "*/bundle/*" \) | head -20 || true
