@@ -1,0 +1,264 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+
+jobs:
+  # ─── Job 1: Fast-fail validation ────────────────────────────────────────────
+  # Checks both version consistency and CHANGELOG before any builds start.
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Validate tag matches Cargo.toml version
+        run: |
+          CARGO_VERSION=$(grep '^version' Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+          TAG_VERSION=${GITHUB_REF_NAME#v}
+          if [ "$CARGO_VERSION" != "$TAG_VERSION" ]; then
+            echo "ERROR: Tag $GITHUB_REF_NAME does not match Cargo.toml version $CARGO_VERSION"
+            exit 1
+          fi
+          echo "Version validated: $CARGO_VERSION"
+
+      - name: Validate CHANGELOG entry exists and is non-empty
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          VERSION_ESC=${VERSION//./\\.}
+          NOTES=$(awk "/^## \[$VERSION_ESC\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md \
+            | sed '/^[[:space:]]*$/d')
+          if [ -z "$NOTES" ]; then
+            echo "ERROR: No CHANGELOG entry found for version $VERSION"
+            echo "Add a '## [$VERSION]' section with content to CHANGELOG.md before tagging."
+            exit 1
+          fi
+          echo "CHANGELOG entry found for $VERSION"
+
+  # ─── Job 2: macOS build ─────────────────────────────────────────────────────
+  build-macos:
+    name: Build (macOS)
+    needs: validate
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Tailwind CSS CLI
+        run: brew install tailwindcss
+
+      - name: Generate main.css
+        run: tailwindcss -i assets/tailwind.css -o assets/main.css
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.10.19
+
+      - name: Install Dioxus CLI
+        run: cargo binstall dioxus-cli@0.7.3 --no-confirm
+
+      - name: Build release bundle
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          command: dx bundle --release
+
+      - name: Locate, rename, and checksum artifact
+        run: |
+          DMG=$(find . -name "*.dmg" -not -path "./target/*" | head -1)
+          if [ -z "$DMG" ]; then
+            echo "ERROR: No .dmg artifact found after dx bundle. Searching for any bundles:"
+            find . \( -name "*.dmg" -o -name "*.app" \) | head -20 || true
+            exit 1
+          fi
+          VERSION=${GITHUB_REF_NAME#v}
+          ARTIFACT="brewvault-v${VERSION}-macos.dmg"
+          cp "$DMG" "$ARTIFACT"
+          openssl dgst -sha256 -r "$ARTIFACT" > "${ARTIFACT}.sha256"
+          echo "ARTIFACT=$ARTIFACT" >> "$GITHUB_ENV"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            ${{ env.ARTIFACT }}
+            ${{ env.ARTIFACT }}.sha256
+
+  # ─── Job 3: Linux build ─────────────────────────────────────────────────────
+  build-linux:
+    name: Build (Linux)
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libglib2.0-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            libwebkit2gtk-4.1-dev \
+            libxdo-dev
+
+      - name: Install Tailwind CSS CLI
+        run: |
+          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-linux-x64
+          chmod +x tailwindcss-linux-x64
+          sudo mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
+
+      - name: Generate main.css
+        run: tailwindcss -i assets/tailwind.css -o assets/main.css
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.10.19
+
+      - name: Install Dioxus CLI
+        run: cargo binstall dioxus-cli@0.7.3 --no-confirm
+
+      - name: Build release bundle
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          command: dx bundle --release
+
+      - name: Locate, rename, and checksum artifact
+        run: |
+          APPIMAGE=$(find . -name "*.AppImage" -not -path "./target/*" | head -1)
+          if [ -z "$APPIMAGE" ]; then
+            echo "ERROR: No .AppImage artifact found after dx bundle. Searching for bundles:"
+            find . \( -name "*.AppImage" -o -name "*.deb" \) | head -20 || true
+            exit 1
+          fi
+          VERSION=${GITHUB_REF_NAME#v}
+          ARTIFACT="brewvault-v${VERSION}-linux.AppImage"
+          cp "$APPIMAGE" "$ARTIFACT"
+          openssl dgst -sha256 -r "$ARTIFACT" > "${ARTIFACT}.sha256"
+          echo "ARTIFACT=$ARTIFACT" >> "$GITHUB_ENV"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: |
+            ${{ env.ARTIFACT }}
+            ${{ env.ARTIFACT }}.sha256
+
+  # ─── Job 4: Windows build ───────────────────────────────────────────────────
+  build-windows:
+    name: Build (Windows)
+    needs: validate
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Tailwind CSS CLI
+        run: |
+          curl -sLO https://github.com/tailwindlabs/tailwindcss/releases/latest/download/tailwindcss-windows-x64.exe
+          chmod +x tailwindcss-windows-x64.exe
+          mv tailwindcss-windows-x64.exe tailwindcss.exe
+          echo "$PWD" >> "$GITHUB_PATH"
+
+      - name: Generate main.css
+        run: tailwindcss -i assets/tailwind.css -o assets/main.css
+
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.10.19
+
+      - name: Install Dioxus CLI
+        run: cargo binstall dioxus-cli@0.7.3 --no-confirm
+
+      - name: Build release bundle
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 20
+          max_attempts: 3
+          shell: bash
+          command: dx bundle --release
+
+      - name: Locate, rename, and checksum artifact
+        run: |
+          MSI=$(find . -name "*.msi" -not -path "./target/*" | head -1)
+          if [ -z "$MSI" ]; then
+            echo "ERROR: No .msi artifact found after dx bundle. Searching for bundles:"
+            find . \( -name "*.msi" -o -name "*.exe" -path "*/bundle/*" \) | head -20 || true
+            exit 1
+          fi
+          VERSION=${GITHUB_REF_NAME#v}
+          ARTIFACT="brewvault-v${VERSION}-windows.msi"
+          cp "$MSI" "$ARTIFACT"
+          openssl dgst -sha256 -r "$ARTIFACT" > "${ARTIFACT}.sha256"
+          echo "ARTIFACT=$ARTIFACT" >> "$GITHUB_ENV"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            ${{ env.ARTIFACT }}
+            ${{ env.ARTIFACT }}.sha256
+
+  # ─── Job 5: Create GitHub Release ───────────────────────────────────────────
+  release:
+    name: Release
+    needs: [build-macos, build-linux, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+          path: artifacts/
+
+      - name: Extract CHANGELOG notes
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          VERSION_ESC=${VERSION//./\\.}
+          NOTES=$(awk "/^## \[$VERSION_ESC\]/{flag=1; next} /^## \[/{flag=0} flag" CHANGELOG.md \
+            | sed '/^[[:space:]]*$/d')
+          {
+            echo "RELEASE_NOTES<<EOF"
+            echo "$NOTES"
+            echo "EOF"
+          } >> "$GITHUB_ENV"
+
+      - name: Detect pre-release
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == *"-"* ]]; then
+            echo "IS_PRERELEASE=true" >> "$GITHUB_ENV"
+          else
+            echo "IS_PRERELEASE=false" >> "$GITHUB_ENV"
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: BrewVault ${{ github.ref_name }}
+          body: ${{ env.RELEASE_NOTES }}
+          prerelease: ${{ env.IS_PRERELEASE }}
+          files: artifacts/**

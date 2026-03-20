@@ -26,6 +26,23 @@ dx bundle --desktop
 
 The bundled app will be placed under `target/dx/brew-vault/bundle/<platform>`.
 
+## Releases
+
+Tagged releases are built automatically via GitHub Actions for macOS, Linux, and Windows.
+
+To publish a new release:
+
+1. Update the version in `Cargo.toml`
+2. Add a `## [x.y.z]` section with content to `CHANGELOG.md`
+3. Tag and push:
+
+```sh
+git tag vx.y.z
+git push --tags
+```
+
+The workflow validates that the tag matches `Cargo.toml`, builds installers on all three platforms, and publishes a GitHub Release with the CHANGELOG notes attached. Pre-release tags (e.g. `v1.0.0-beta.1`) are automatically marked as pre-releases.
+
 ## Project structure
 
 ```
