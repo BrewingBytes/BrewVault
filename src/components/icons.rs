@@ -117,6 +117,151 @@ pub fn ITrash(#[props(default = "w-4 h-4".to_string())] class: String) -> Elemen
     }
 }
 
+/// Cloud icon — used for cloud sync setting.
+#[component]
+pub fn ICloud(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z" }
+        }
+    }
+}
+
+/// Download icon — used for export backup.
+#[component]
+pub fn IDownload(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }
+            polyline { points: "7 10 12 15 17 10" }
+            line { x1: "12", y1: "15", x2: "12", y2: "3" }
+        }
+    }
+}
+
+/// Upload icon — used for import accounts.
+#[component]
+pub fn IUpload(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }
+            polyline { points: "17 8 12 3 7 8" }
+            line { x1: "12", y1: "3", x2: "12", y2: "15" }
+        }
+    }
+}
+
+/// Globe icon — used for language setting.
+#[component]
+pub fn IGlobe(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            circle { cx: "12", cy: "12", r: "10" }
+            line { x1: "2", y1: "12", x2: "22", y2: "12" }
+            path { d: "M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" }
+        }
+    }
+}
+
+/// Bell icon.
+#[component]
+pub fn IBell(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" }
+            path { d: "M13.73 21a2 2 0 0 1-3.46 0" }
+        }
+    }
+}
+
+/// Info icon — used for version row.
+#[component]
+pub fn IInfo(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            circle { cx: "12", cy: "12", r: "10" }
+            line { x1: "12", y1: "16", x2: "12", y2: "12" }
+            line { x1: "12", y1: "8", x2: "12.01", y2: "8" }
+        }
+    }
+}
+
+/// Star icon — used for rate the app row.
+#[component]
+pub fn IStar(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            polygon { points: "12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" }
+        }
+    }
+}
+
+/// Check icon — used for selected language indicator.
+#[component]
+pub fn ICheck(#[props(default = "w-4 h-4".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "2.5",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            polyline { points: "20 6 9 17 4 12" }
+        }
+    }
+}
+
 /// Gear/cog icon used for the Settings nav item.
 #[component]
 pub fn ICog() -> Element {
