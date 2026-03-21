@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-03-21
+
 ### Added
 - Right-click context menu on account rows — rename, move up/down within a group, change category (with inline picker), and delete with confirmation
 - Long-press (600ms) opens the context menu on touch devices
