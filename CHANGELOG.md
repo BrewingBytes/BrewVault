@@ -14,6 +14,7 @@ All notable changes to this project will be documented in this file.
 - Delete confirmation modal calls out the specific entry name so there's no ambiguity about what you're removing
 - `RenameModal` and `DeleteConfirmModal` are now standalone public components — reusable anywhere in the app, not just from the context menu
 - New design tokens: `--color-disabled` (`#2e2e2e`) for greyed-out items, `--color-overlay` for modal backdrops, `--shadow-menu` for floating surfaces
+- **Delete All Accounts** in Settings → Danger Zone now works — confirm once and every entry is wiped from the vault; a toast confirms success or surfaces any error
 
 ### Changed
 - Default WebView right-click menu ("Inspect Element" etc.) is suppressed app-wide; only BrewVault's own context menu appears on right-click

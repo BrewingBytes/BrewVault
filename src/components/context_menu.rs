@@ -86,17 +86,25 @@ pub fn ContextMenu() -> Element {
     let can_move_down = data.can_move_down;
     drop(menu_read);
 
-    // Collect existing group names for the category picker
+    // Collect existing group names for the category picker.
+    // Priority groups (Dev → Work → Personal) always appear first in that order,
+    // followed by any other groups from existing entries sorted alphabetically.
     let all_groups: Vec<String> = {
-        let mut seen = std::collections::HashSet::new();
-        let mut groups: Vec<String> = APP_STATE
+        const PRIORITY: &[&str] = &["Dev", "Work", "Personal"];
+        let mut seen: std::collections::HashSet<String> =
+            PRIORITY.iter().map(|s| s.to_string()).collect();
+        // Start with priority groups in order
+        let mut groups: Vec<String> = PRIORITY.iter().map(|s| s.to_string()).collect();
+        // Collect any additional groups from entries, sorted alphabetically
+        let mut extra: Vec<String> = APP_STATE
             .read()
             .get_entries()
             .iter()
             .filter_map(|e| e.group.clone())
             .filter(|g| seen.insert(g.clone()))
             .collect();
-        groups.sort();
+        extra.sort();
+        groups.extend(extra);
         groups
     };
     let current_group = entry.group.clone();
@@ -115,10 +123,10 @@ pub fn ContextMenu() -> Element {
             },
         }
 
-        // Menu surface — positioned at cursor, above the overlay
+        // Menu surface — positioned at cursor, CSS clamp keeps it inside the viewport
         div {
             class: "fixed z-50 bg-surface border border-edge rounded-xl py-1 min-w-[180px]",
-            style: "left: {x}px; top: {y}px; box-shadow: var(--shadow-menu);",
+            style: "left: 0; top: 0; transform: translate(clamp(8px, {x}px, calc(100vw - 100% - 8px)), clamp(8px, {y}px, calc(100vh - 100% - 8px))); box-shadow: var(--shadow-menu);",
 
             match view() {
                 // ─── Main menu ───────────────────────────────────────────

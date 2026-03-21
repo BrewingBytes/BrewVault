@@ -194,6 +194,8 @@ pub fn Accounts() -> Element {
                 div { class: "flex-1 overflow-y-auto px-6 pb-4",
                     {
                         let (labeled, ungrouped) = group_entries(filtered);
+                        let has_labeled = !labeled.is_empty();
+                        let has_ungrouped = !ungrouped.is_empty();
                         rsx! {
                             for (group_name, group_entries) in labeled {
                                 {
@@ -210,6 +212,9 @@ pub fn Accounts() -> Element {
                                         }
                                     }
                                 }
+                            }
+                            if has_labeled && has_ungrouped {
+                                div { class: "h-[1px] bg-edge my-2" }
                             }
                             {
                                 let len = ungrouped.len();

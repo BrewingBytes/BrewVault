@@ -271,6 +271,15 @@ pub fn delete_entry(conn: &Connection, id: &str) -> Result<()> {
     Ok(())
 }
 
+/// Deletes every entry from the vault.
+///
+/// Returns the number of rows deleted (may be 0 if the vault was empty —
+/// that is not an error).
+pub fn delete_all_entries(conn: &Connection) -> Result<usize> {
+    let n = conn.execute("DELETE FROM entries", [])?;
+    Ok(n)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -82,6 +82,17 @@ impl AppState {
         Ok(())
     }
 
+    /// Deletes all entries from the vault database and clears the in-memory list.
+    ///
+    /// Succeeds even if the vault is already empty.
+    pub fn remove_all_entries(&mut self) -> Result<(), TotpError> {
+        let arc = self.db.as_ref().expect("DB not initialized");
+        let conn = arc.lock().expect("DB mutex poisoned");
+        storage::delete_all_entries(&conn)?;
+        self.entries.clear();
+        Ok(())
+    }
+
     /// Renames the issuer and account fields of the entry with `id`.
     ///
     /// Returns `Err` if the entry does not exist or the database write fails.

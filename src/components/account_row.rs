@@ -14,6 +14,7 @@ use std::{
 
 use chrono::Utc;
 use dioxus::prelude::*;
+use dioxus_elements::input_data::MouseButton;
 use tokio::time::sleep;
 
 use crate::{
@@ -89,8 +90,6 @@ pub fn AccountRow(
     let mut copied = use_signal(|| false);
     // Long-press cancellation flag for mobile touch
     let mut long_press_active = use_signal(|| false);
-    let mut touch_x = use_signal(|| 0.0f64);
-    let mut touch_y = use_signal(|| 0.0f64);
 
     // 1-second tick: update countdown and regenerate code when the window changes.
     let future_entry = Arc::new(entry.clone());
@@ -151,15 +150,18 @@ pub fn AccountRow(
             class: "{bg} border {border} rounded-2xl px-4 py-3 flex items-center gap-4 w-full mb-2 cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
             tabindex: "0",
             onmouseenter: move |_| hovered.set(true),
-            onmouseleave: move |_| hovered.set(false),
-            onclick: move |_| copy_code(code, copied),
+            onmouseleave: move |_| { hovered.set(false); long_press_active.set(false); },
+            onclick: move |_| {
+                if CONTEXT_MENU.read().is_some() { return; }
+                copy_code(code, copied);
+            },
             onkeydown: move |e| {
                 if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
                     copy_code(code, copied);
                 }
             },
 
-            // Right-click: open context menu
+            // Right-click: open context menu (CSS clamp handles viewport bounds)
             oncontextmenu: {
                 let entry = entry.clone();
                 move |e: MouseEvent| {
@@ -175,23 +177,23 @@ pub fn AccountRow(
                 }
             },
 
-            // Long-press (mobile): store position on touchstart, cancel on move/end
-            ontouchstart: {
+            // Long-press (mouse): primary button held for 600ms opens context menu
+            onmousedown: {
                 let entry = entry.clone();
-                move |e: TouchEvent| {
-                    if let Some(touch) = e.touches().first() {
-                        touch_x.set(touch.client_coordinates().x);
-                        touch_y.set(touch.client_coordinates().y);
-                    }
-                    long_press_active.set(true);
+                move |e: MouseEvent| {
+                    if e.trigger_button() != Some(MouseButton::Primary) { return; }
+                    let cx = e.client_coordinates().x;
+                    let cy = e.client_coordinates().y;
                     let entry = entry.clone();
+                    long_press_active.set(true);
                     spawn(async move {
-                        sleep(Duration::from_millis(500)).await;
+                        sleep(Duration::from_millis(600)).await;
                         if long_press_active() {
+                            long_press_active.set(false);
                             *CONTEXT_MENU.write() = Some(ContextMenuData {
-                                entry: entry.clone(),
-                                x: touch_x(),
-                                y: touch_y(),
+                                entry,
+                                x: cx,
+                                y: cy,
                                 can_move_up: !is_first_in_group,
                                 can_move_down: !is_last_in_group,
                             });
@@ -199,8 +201,7 @@ pub fn AccountRow(
                     });
                 }
             },
-            ontouchmove: move |_| long_press_active.set(false),
-            ontouchend: move |_| long_press_active.set(false),
+            onmouseup: move |_| long_press_active.set(false),
 
             // Colored avatar with initials
             div {
