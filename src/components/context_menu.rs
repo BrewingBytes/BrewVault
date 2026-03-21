@@ -61,10 +61,9 @@ pub fn ContextMenu() -> Element {
     use_effect(move || {
         if CONTEXT_MENU.read().is_some() {
             spawn(async move {
-                let _ = dioxus::document::eval(
-                    "document.getElementById('ctx-menu-overlay')?.focus()",
-                )
-                .await;
+                let _ =
+                    dioxus::document::eval("document.getElementById('ctx-menu-overlay')?.focus()")
+                        .await;
             });
         }
     });
@@ -315,17 +314,26 @@ pub fn ContextMenu() -> Element {
                             let id = entry.id.clone();
                             let iss_for_toast = entry.issuer.clone();
                             move |(new_issuer, new_account): (String, String)| {
-                                if APP_STATE
+                                match APP_STATE
                                     .write()
                                     .rename_entry(&id, &new_issuer, &new_account)
-                                    .is_ok()
                                 {
-                                    *TOAST.write() = Some(ToastData {
-                                        id: next_toast_id(),
-                                        text: format!("Renamed {iss_for_toast}"),
-                                        bg_color: "#0f1825".to_string(),
-                                        text_color: "#4f8ef7".to_string(),
-                                    });
+                                    Ok(()) => {
+                                        *TOAST.write() = Some(ToastData {
+                                            id: next_toast_id(),
+                                            text: format!("Renamed {iss_for_toast}"),
+                                            bg_color: "#0f1825".to_string(),
+                                            text_color: "#4f8ef7".to_string(),
+                                        });
+                                    }
+                                    Err(_) => {
+                                        *TOAST.write() = Some(ToastData {
+                                            id: next_toast_id(),
+                                            text: format!("Failed to rename {iss_for_toast}"),
+                                            bg_color: "#1e0808".to_string(),
+                                            text_color: "#f75f4f".to_string(),
+                                        });
+                                    }
                                 }
                                 *CONTEXT_MENU.write() = None;
                             }
@@ -389,17 +397,23 @@ pub fn ContextMenu() -> Element {
                                             move |ev| {
                                                 ev.stop_propagation();
                                                 let gname = g.clone();
-                                                if APP_STATE
-                                                    .write()
-                                                    .update_entry_group(&entry_id, Some(&gname))
-                                                    .is_ok()
-                                                {
-                                                    *TOAST.write() = Some(ToastData {
-                                                        id: next_toast_id(),
-                                                        text: format!("Moved to {gname}"),
-                                                        bg_color: "#0f1825".to_string(),
-                                                        text_color: "#4f8ef7".to_string(),
-                                                    });
+                                                match APP_STATE.write().update_entry_group(&entry_id, Some(&gname)) {
+                                                    Ok(()) => {
+                                                        *TOAST.write() = Some(ToastData {
+                                                            id: next_toast_id(),
+                                                            text: format!("Moved to {gname}"),
+                                                            bg_color: "#0f1825".to_string(),
+                                                            text_color: "#4f8ef7".to_string(),
+                                                        });
+                                                    }
+                                                    Err(_) => {
+                                                        *TOAST.write() = Some(ToastData {
+                                                            id: next_toast_id(),
+                                                            text: "Failed to change category".to_string(),
+                                                            bg_color: "#1e0808".to_string(),
+                                                            text_color: "#f75f4f".to_string(),
+                                                        });
+                                                    }
                                                 }
                                                 *CONTEXT_MENU.write() = None;
                                             }
@@ -411,17 +425,23 @@ pub fn ContextMenu() -> Element {
                                                 if ev.key() == Key::Enter || ev.key() == Key::Character(" ".to_string()) {
                                                     ev.stop_propagation();
                                                     let gname = g.clone();
-                                                    if APP_STATE
-                                                        .write()
-                                                        .update_entry_group(&entry_id, Some(&gname))
-                                                        .is_ok()
-                                                    {
-                                                        *TOAST.write() = Some(ToastData {
-                                                            id: next_toast_id(),
-                                                            text: format!("Moved to {gname}"),
-                                                            bg_color: "#0f1825".to_string(),
-                                                            text_color: "#4f8ef7".to_string(),
-                                                        });
+                                                    match APP_STATE.write().update_entry_group(&entry_id, Some(&gname)) {
+                                                        Ok(()) => {
+                                                            *TOAST.write() = Some(ToastData {
+                                                                id: next_toast_id(),
+                                                                text: format!("Moved to {gname}"),
+                                                                bg_color: "#0f1825".to_string(),
+                                                                text_color: "#4f8ef7".to_string(),
+                                                            });
+                                                        }
+                                                        Err(_) => {
+                                                            *TOAST.write() = Some(ToastData {
+                                                                id: next_toast_id(),
+                                                                text: "Failed to change category".to_string(),
+                                                                bg_color: "#1e0808".to_string(),
+                                                                text_color: "#f75f4f".to_string(),
+                                                            });
+                                                        }
                                                     }
                                                     *CONTEXT_MENU.write() = None;
                                                 }
@@ -475,17 +495,26 @@ pub fn ContextMenu() -> Element {
                                         } else if e.key() == Key::Enter {
                                             let cat = new_cat_input().trim().to_string();
                                             if !cat.is_empty() {
-                                                if APP_STATE
+                                                match APP_STATE
                                                     .write()
                                                     .update_entry_group(&entry_id, Some(&cat))
-                                                    .is_ok()
                                                 {
-                                                    *TOAST.write() = Some(ToastData {
-                                                        id: next_toast_id(),
-                                                        text: format!("Moved to {cat}"),
-                                                        bg_color: "#0f1825".to_string(),
-                                                        text_color: "#4f8ef7".to_string(),
-                                                    });
+                                                    Ok(()) => {
+                                                        *TOAST.write() = Some(ToastData {
+                                                            id: next_toast_id(),
+                                                            text: format!("Moved to {cat}"),
+                                                            bg_color: "#0f1825".to_string(),
+                                                            text_color: "#4f8ef7".to_string(),
+                                                        });
+                                                    }
+                                                    Err(_) => {
+                                                        *TOAST.write() = Some(ToastData {
+                                                            id: next_toast_id(),
+                                                            text: "Failed to change category".to_string(),
+                                                            bg_color: "#1e0808".to_string(),
+                                                            text_color: "#f75f4f".to_string(),
+                                                        });
+                                                    }
                                                 }
                                                 *CONTEXT_MENU.write() = None;
                                             }
@@ -510,17 +539,26 @@ pub fn ContextMenu() -> Element {
                                             ev.stop_propagation();
                                             let cat = new_cat_input().trim().to_string();
                                             if !cat.is_empty() {
-                                                if APP_STATE
+                                                match APP_STATE
                                                     .write()
                                                     .update_entry_group(&entry_id, Some(&cat))
-                                                    .is_ok()
                                                 {
-                                                    *TOAST.write() = Some(ToastData {
-                                                        id: next_toast_id(),
-                                                        text: format!("Moved to {cat}"),
-                                                        bg_color: "#0f1825".to_string(),
-                                                        text_color: "#4f8ef7".to_string(),
-                                                    });
+                                                    Ok(()) => {
+                                                        *TOAST.write() = Some(ToastData {
+                                                            id: next_toast_id(),
+                                                            text: format!("Moved to {cat}"),
+                                                            bg_color: "#0f1825".to_string(),
+                                                            text_color: "#4f8ef7".to_string(),
+                                                        });
+                                                    }
+                                                    Err(_) => {
+                                                        *TOAST.write() = Some(ToastData {
+                                                            id: next_toast_id(),
+                                                            text: "Failed to change category".to_string(),
+                                                            bg_color: "#1e0808".to_string(),
+                                                            text_color: "#f75f4f".to_string(),
+                                                        });
+                                                    }
                                                 }
                                                 *CONTEXT_MENU.write() = None;
                                             }
@@ -544,17 +582,26 @@ pub fn ContextMenu() -> Element {
                                     let entry_id = entry_id.clone();
                                     move |ev| {
                                         ev.stop_propagation();
-                                        if APP_STATE
+                                        match APP_STATE
                                             .write()
                                             .update_entry_group(&entry_id, None)
-                                            .is_ok()
                                         {
-                                            *TOAST.write() = Some(ToastData {
-                                                id: next_toast_id(),
-                                                text: "Removed from group".to_string(),
-                                                bg_color: "#0f1825".to_string(),
-                                                text_color: "#4f8ef7".to_string(),
-                                            });
+                                            Ok(()) => {
+                                                *TOAST.write() = Some(ToastData {
+                                                    id: next_toast_id(),
+                                                    text: "Removed from group".to_string(),
+                                                    bg_color: "#0f1825".to_string(),
+                                                    text_color: "#4f8ef7".to_string(),
+                                                });
+                                            }
+                                            Err(_) => {
+                                                *TOAST.write() = Some(ToastData {
+                                                    id: next_toast_id(),
+                                                    text: "Failed to change category".to_string(),
+                                                    bg_color: "#1e0808".to_string(),
+                                                    text_color: "#f75f4f".to_string(),
+                                                });
+                                            }
                                         }
                                         *CONTEXT_MENU.write() = None;
                                     }
@@ -562,17 +609,26 @@ pub fn ContextMenu() -> Element {
                                 onkeydown: move |ev: KeyboardEvent| {
                                     if ev.key() == Key::Enter || ev.key() == Key::Character(" ".to_string()) {
                                         ev.stop_propagation();
-                                        if APP_STATE
+                                        match APP_STATE
                                             .write()
                                             .update_entry_group(&entry_id, None)
-                                            .is_ok()
                                         {
-                                            *TOAST.write() = Some(ToastData {
-                                                id: next_toast_id(),
-                                                text: "Removed from group".to_string(),
-                                                bg_color: "#0f1825".to_string(),
-                                                text_color: "#4f8ef7".to_string(),
-                                            });
+                                            Ok(()) => {
+                                                *TOAST.write() = Some(ToastData {
+                                                    id: next_toast_id(),
+                                                    text: "Removed from group".to_string(),
+                                                    bg_color: "#0f1825".to_string(),
+                                                    text_color: "#4f8ef7".to_string(),
+                                                });
+                                            }
+                                            Err(_) => {
+                                                *TOAST.write() = Some(ToastData {
+                                                    id: next_toast_id(),
+                                                    text: "Failed to change category".to_string(),
+                                                    bg_color: "#1e0808".to_string(),
+                                                    text_color: "#f75f4f".to_string(),
+                                                });
+                                            }
                                         }
                                         *CONTEXT_MENU.write() = None;
                                     }
