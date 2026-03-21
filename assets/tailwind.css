@@ -12,6 +12,8 @@
     --color-accent: var(--color-accent);
     --color-warn: var(--color-warn);
     --color-danger: var(--color-danger);
+    --color-disabled: var(--color-disabled);
+    --shadow-menu: var(--shadow-menu);
 }
 
 @keyframes toast-in {

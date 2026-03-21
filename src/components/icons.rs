@@ -262,6 +262,131 @@ pub fn ICheck(#[props(default = "w-4 h-4".to_string())] class: String) -> Elemen
     }
 }
 
+/// Pencil/edit icon — used for rename actions in the context menu.
+#[component]
+pub fn IEdit(#[props(default = "w-[15px] h-[15px]".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.75",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" }
+            path { d: "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" }
+        }
+    }
+}
+
+/// Arrow pointing up — used for Move Up in the context menu.
+#[component]
+pub fn IArrowUp(#[props(default = "w-[15px] h-[15px]".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.75",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            line { x1: "12", y1: "19", x2: "12", y2: "5" }
+            polyline { points: "5 12 12 5 19 12" }
+        }
+    }
+}
+
+/// Arrow pointing down — used for Move Down in the context menu.
+#[component]
+pub fn IArrowDown(#[props(default = "w-[15px] h-[15px]".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.75",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            line { x1: "12", y1: "5", x2: "12", y2: "19" }
+            polyline { points: "19 12 12 19 5 12" }
+        }
+    }
+}
+
+/// Folder icon — used for Change Category in the context menu.
+#[component]
+pub fn IFolder(#[props(default = "w-[15px] h-[15px]".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.75",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            path { d: "M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" }
+        }
+    }
+}
+
+/// Arrow pointing left — used for the back row in the category picker.
+#[component]
+pub fn IArrowLeft(#[props(default = "w-[15px] h-[15px]".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.75",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            line { x1: "19", y1: "12", x2: "5", y2: "12" }
+            polyline { points: "12 19 5 12 12 5" }
+        }
+    }
+}
+
+/// Plus icon — used for "New category…" row in the category picker.
+#[component]
+pub fn IPlus(#[props(default = "w-[15px] h-[15px]".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.75",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            line { x1: "12", y1: "5", x2: "12", y2: "19" }
+            line { x1: "5", y1: "12", x2: "19", y2: "12" }
+        }
+    }
+}
+
+/// Circle-slash icon — used for "No group" row in the category picker.
+#[component]
+pub fn ICircleSlash(#[props(default = "w-[15px] h-[15px]".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.75",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            circle { cx: "12", cy: "12", r: "10" }
+            line { x1: "4.93", y1: "4.93", x2: "19.07", y2: "19.07" }
+        }
+    }
+}
+
 /// Gear/cog icon used for the Settings nav item.
 #[component]
 pub fn ICog() -> Element {

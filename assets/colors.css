@@ -8,4 +8,7 @@
     --color-accent: #4f8ef7;
     --color-warn: #f97316;
     --color-danger: #f75f4f;
+    --color-disabled: #2e2e2e;
+    --color-overlay: rgba(0, 0, 0, 0.6);
+    --shadow-menu: 0 8px 32px rgba(0, 0, 0, 0.6);
 }

@@ -2,7 +2,7 @@
 
 use brew_vault::{
     models::totp::{Algorithm, Digits, TotpEntry},
-    storage::{init_schema, load_entries, open_db_at, save_entry},
+    storage::{init_schema, insert_entry, load_entries, open_db_at},
 };
 use tempfile::tempdir;
 
@@ -16,6 +16,7 @@ fn make_entry(n: u8) -> TotpEntry {
         digits: Digits::Six,
         period: 30,
         group: None,
+        sort_order: n as u64,
     }
 }
 
@@ -30,7 +31,7 @@ fn roundtrip_three_entries() {
         let conn = open_db_at(&db_path, key).expect("open for write failed");
         init_schema(&conn).expect("init_schema failed");
         for n in 1..=3 {
-            save_entry(&conn, &make_entry(n)).expect("save_entry failed");
+            insert_entry(&conn, &make_entry(n)).expect("insert_entry failed");
         }
     }
 
@@ -53,6 +54,7 @@ fn roundtrip_three_entries() {
         assert_eq!(entry.algorithm.as_str(), expected.algorithm.as_str());
         assert_eq!(entry.digits.as_i64(), expected.digits.as_i64());
         assert_eq!(entry.period, expected.period);
+        assert_eq!(entry.sort_order, expected.sort_order);
     }
 }
 
@@ -64,7 +66,7 @@ fn wrong_key_cannot_read_entries() {
     {
         let conn = open_db_at(&db_path, "correct-key").expect("open for write failed");
         init_schema(&conn).expect("init_schema failed");
-        save_entry(&conn, &make_entry(1)).expect("save_entry failed");
+        insert_entry(&conn, &make_entry(1)).expect("insert_entry failed");
     }
 
     let conn = open_db_at(&db_path, "wrong-key").expect("open with wrong key failed");

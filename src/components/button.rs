@@ -11,6 +11,8 @@ pub enum ButtonVariant {
     Secondary,
     /// Circular accent icon button (e.g. the + add button).
     Round,
+    /// Destructive danger button (e.g. delete confirmation).
+    Danger,
 }
 
 /// A styled, accessible button with primary, secondary, and round variants.
@@ -20,7 +22,7 @@ pub enum ButtonVariant {
 /// | Prop       | Type                        | Description                                     |
 /// |------------|-----------------------------|-------------------------------------------------|
 /// | `label`    | `&'static str`              | Button text.                                    |
-/// | `variant`  | [`ButtonVariant`]           | Visual style (`Primary` or `Secondary`).        |
+/// | `variant`  | [`ButtonVariant`]           | Visual style (`Primary`, `Secondary`, `Round`, or `Danger`). |
 /// | `disabled` | `bool`                      | Disables interaction and applies muted styling. |
 /// | `on_click` | `EventHandler<MouseEvent>`  | Click handler (not called when disabled).       |
 #[component]
@@ -48,6 +50,12 @@ pub fn Button(
         (ButtonVariant::Round, _) => {
             "w-9 h-9 rounded-full bg-accent flex items-center justify-center \
              flex-shrink-0 border-none p-0 cursor-pointer text-white text-2xl font-light leading-none"
+        }
+        (ButtonVariant::Danger, false) => {
+            "bg-danger text-white rounded-[10px] px-4 py-2 text-sm font-semibold cursor-pointer transition-colors duration-[80ms]"
+        }
+        (ButtonVariant::Danger, true) => {
+            "bg-[#2a1a1a] text-danger/30 rounded-[10px] px-4 py-2 text-sm cursor-default"
         }
     };
 

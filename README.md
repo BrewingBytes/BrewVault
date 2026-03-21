@@ -48,12 +48,32 @@ The workflow validates that the tag matches `Cargo.toml`, builds installers on a
 ```
 brew-vault/
 ├── assets/
-│   ├── tailwind.css   # Tailwind source (edit this)
-│   └── main.css       # Generated output (do not edit)
+│   ├── tailwind.css      # Tailwind source (edit this)
+│   ├── colors.css        # Design token CSS variables
+│   └── main.css          # Generated output (do not edit)
 ├── src/
-│   ├── main.rs        # App entry point
-│   ├── components/    # Dioxus UI components
-│   └── models/        # Data models and app state
+│   ├── main.rs           # App entry point
+│   ├── components/       # Dioxus UI components
+│   │   ├── account_row.rs
+│   │   ├── app_shell.rs
+│   │   ├── bottom_nav.rs
+│   │   ├── button.rs
+│   │   ├── context_menu.rs
+│   │   ├── delete_confirm_modal.rs
+│   │   ├── icons.rs
+│   │   ├── input.rs
+│   │   ├── rename_modal.rs
+│   │   ├── ring.rs
+│   │   ├── section_label.rs
+│   │   ├── text_divider.rs
+│   │   └── toast.rs
+│   ├── views/            # Route-level page components
+│   ├── models/           # Data models and app state
+│   ├── routes.rs
+│   ├── storage.rs
+│   └── totp.rs
+├── tests/
+│   └── storage_roundtrip.rs  # Integration tests
 ├── Cargo.toml
 └── Dioxus.toml
 ```
@@ -93,6 +113,6 @@ cargo test totp
 
 Tests cover:
 
-- `storage` (unit) — schema init, save/load round-trip, upsert, delete, and wrong-key rejection
+- `storage` (unit) — schema init, insert/load round-trip, sort_order ordering, delete, rename, group update, sort_order swap, migration idempotency, and wrong-key rejection
 - `totp` (unit) — code generation (SHA-1, SHA-256), output format, invalid secrets, and `seconds_remaining` range
-- `storage_roundtrip` (integration) — persists 3 entries to a real encrypted file, reopens with the same key, and asserts all fields survive the round-trip
+- `storage_roundtrip` (integration) — persists 3 entries to a real encrypted file, reopens with the same key, and asserts all fields (including `sort_order`) survive the round-trip
