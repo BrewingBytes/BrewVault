@@ -153,6 +153,7 @@ mod tests {
             digits,
             period: 30,
             group: None,
+            sort_order: 0,
         }
     }
 

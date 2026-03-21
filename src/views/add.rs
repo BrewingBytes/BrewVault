@@ -63,6 +63,7 @@ pub fn Add() -> Element {
             digits: Digits::Six,
             period: 30,
             group: None,
+            sort_order: 0,
         };
         let _ = APP_STATE.write().add_entry(entry);
         nav.push(Route::Accounts {});

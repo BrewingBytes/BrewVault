@@ -3,6 +3,7 @@
 //! Renders a single [`TotpEntry`] as a horizontal row with a colored avatar,
 //! issuer + account labels, the live TOTP code, and a countdown ring. Clicking
 //! the row copies the raw code to the clipboard and briefly highlights the row.
+//! Right-clicking (or long-pressing on mobile) opens the context menu.
 
 use std::{
     collections::hash_map::DefaultHasher,
@@ -13,10 +14,12 @@ use std::{
 
 use chrono::Utc;
 use dioxus::prelude::*;
+use dioxus_elements::input_data::MouseButton;
 use tokio::time::sleep;
 
 use crate::{
     components::{
+        context_menu::{CONTEXT_MENU, ContextMenuData},
         ring::Ring,
         toast::{TOAST, ToastData, next_toast_id},
     },
@@ -25,9 +28,6 @@ use crate::{
 };
 
 /// Deterministic background/foreground color pair for an issuer's avatar.
-///
-/// Hashes the issuer name and picks one of eight dark-background / bright-text
-/// pairs so every issuer gets a consistent color across renders.
 fn icon_colors(issuer: &str) -> (&'static str, &'static str) {
     const PALETTE: [(&str, &str); 8] = [
         ("#1a2a1a", "#4caf50"),
@@ -45,7 +45,6 @@ fn icon_colors(issuer: &str) -> (&'static str, &'static str) {
     PALETTE[idx]
 }
 
-/// Returns the `ToastData` for a successful copy action.
 fn copied_toast() -> ToastData {
     ToastData {
         id: next_toast_id(),
@@ -68,21 +67,29 @@ fn copy_code(code: Signal<String>, mut copied: Signal<bool>) {
 
 /// A live TOTP account row.
 ///
-/// Displays a single [`TotpEntry`] as a tappable row. Clicking copies the code
-/// to the clipboard and shows a brief "copied" state. The code and countdown
-/// update automatically every second via a background async loop.
-///
 /// # Props
 ///
-/// | Prop    | Type        | Description                        |
-/// |---------|-------------|------------------------------------|
-/// | `entry` | [`TotpEntry`] | The credential to display.       |
+/// | Prop                | Type          | Description                                   |
+/// |---------------------|---------------|-----------------------------------------------|
+/// | `entry`             | [`TotpEntry`] | The credential to display.                    |
+/// | `is_first_in_group` | `bool`        | True when this entry is first in its group.   |
+/// | `is_last_in_group`  | `bool`        | True when this entry is last in its group.    |
+///
+/// `is_first_in_group` / `is_last_in_group` are used to set `can_move_up` /
+/// `can_move_down` in the context menu data so the Move Up / Move Down items
+/// are correctly greyed out at group boundaries.
 #[component]
-pub fn AccountRow(entry: TotpEntry) -> Element {
+pub fn AccountRow(
+    entry: TotpEntry,
+    #[props(default = false)] is_first_in_group: bool,
+    #[props(default = false)] is_last_in_group: bool,
+) -> Element {
     let mut code = use_signal(|| generate_code(&entry).unwrap_or_else(|_| "------".into()));
     let mut secs = use_signal(|| seconds_remaining(&entry));
     let mut hovered = use_signal(|| false);
     let mut copied = use_signal(|| false);
+    // Long-press cancellation flag for mobile touch
+    let mut long_press_active = use_signal(|| false);
 
     // 1-second tick: update countdown and regenerate code when the window changes.
     let future_entry = Arc::new(entry.clone());
@@ -104,7 +111,7 @@ pub fn AccountRow(entry: TotpEntry) -> Element {
         }
     });
 
-    // Reset copied highlight when the toast dismisses — guaranteed synchronization.
+    // Reset copied highlight when the toast dismisses.
     use_effect(move || {
         if TOAST.read().is_none() {
             copied.set(false);
@@ -143,13 +150,58 @@ pub fn AccountRow(entry: TotpEntry) -> Element {
             class: "{bg} border {border} rounded-2xl px-4 py-3 flex items-center gap-4 w-full mb-2 cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50",
             tabindex: "0",
             onmouseenter: move |_| hovered.set(true),
-            onmouseleave: move |_| hovered.set(false),
-            onclick: move |_| copy_code(code, copied),
+            onmouseleave: move |_| { hovered.set(false); long_press_active.set(false); },
+            onclick: move |_| {
+                if CONTEXT_MENU.read().is_some() { return; }
+                copy_code(code, copied);
+            },
             onkeydown: move |e| {
                 if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
                     copy_code(code, copied);
                 }
             },
+
+            // Right-click: open context menu (CSS clamp handles viewport bounds)
+            oncontextmenu: {
+                let entry = entry.clone();
+                move |e: MouseEvent| {
+                    e.prevent_default();
+                    e.stop_propagation();
+                    *CONTEXT_MENU.write() = Some(ContextMenuData {
+                        entry: entry.clone(),
+                        x: e.client_coordinates().x,
+                        y: e.client_coordinates().y,
+                        can_move_up: !is_first_in_group,
+                        can_move_down: !is_last_in_group,
+                    });
+                }
+            },
+
+            // Long-press (mouse): primary button held for 600ms opens context menu
+            onmousedown: {
+                let entry = entry.clone();
+                move |e: MouseEvent| {
+                    if e.trigger_button() != Some(MouseButton::Primary) { return; }
+                    let cx = e.client_coordinates().x;
+                    let cy = e.client_coordinates().y;
+                    let entry = entry.clone();
+                    long_press_active.set(true);
+                    spawn(async move {
+                        sleep(Duration::from_millis(600)).await;
+                        if long_press_active() {
+                            long_press_active.set(false);
+                            *CONTEXT_MENU.write() = Some(ContextMenuData {
+                                entry,
+                                x: cx,
+                                y: cy,
+                                can_move_up: !is_first_in_group,
+                                can_move_down: !is_last_in_group,
+                            });
+                        }
+                    });
+                }
+            },
+            onmouseup: move |_| long_press_active.set(false),
 
             // Colored avatar with initials
             div {

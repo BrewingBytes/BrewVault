@@ -109,4 +109,7 @@ pub struct TotpEntry {
     /// Optional group label for organising entries (e.g. `"Personal"`, `"Work"`, `"Dev"`).
     /// `None` until the user assigns a group.
     pub group: Option<String>,
+    /// Display order within its group. Entries are shown `ORDER BY sort_order DESC`
+    /// (highest value = top of list). New entries receive `max + 1`.
+    pub sort_order: u64,
 }

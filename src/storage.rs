@@ -40,29 +40,52 @@ pub fn open_db(key: &str) -> Result<Connection> {
             .map_err(|_| rusqlite::Error::InvalidPath(parent.to_path_buf()))?;
     }
     let conn = Connection::open(&path)?;
-    // Use pragma_update so the key is passed as a bound parameter, not
-    // interpolated into SQL — prevents injection if the key ever comes from
-    // user input.
     conn.pragma_update(None, "key", key)?;
     Ok(conn)
 }
 
 /// Creates the `entries` table if it does not already exist.
 ///
-/// Safe to call multiple times — uses `CREATE TABLE IF NOT EXISTS`.
+/// Includes the `sort_order` column. Safe to call multiple times — uses
+/// `CREATE TABLE IF NOT EXISTS`. For existing databases that already have
+/// the table without `sort_order`, call [`migrate_sort_order`] afterwards.
 pub fn init_schema(conn: &Connection) -> Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS entries (
-            id        TEXT PRIMARY KEY,
-            issuer    TEXT NOT NULL,
-            account   TEXT NOT NULL,
-            secret    TEXT NOT NULL,
-            algorithm TEXT NOT NULL DEFAULT 'SHA1',
-            digits    INTEGER NOT NULL DEFAULT 6,
-            period    INTEGER NOT NULL DEFAULT 30,
-            `group`   TEXT DEFAULT NULL
+            id         TEXT PRIMARY KEY,
+            issuer     TEXT NOT NULL,
+            account    TEXT NOT NULL,
+            secret     TEXT NOT NULL,
+            algorithm  TEXT NOT NULL DEFAULT 'SHA1',
+            digits     INTEGER NOT NULL DEFAULT 6,
+            period     INTEGER NOT NULL DEFAULT 30,
+            `group`    TEXT DEFAULT NULL,
+            sort_order INTEGER NOT NULL DEFAULT 0
         );",
     )
+}
+
+/// Adds the `sort_order` column to an existing database that pre-dates it.
+///
+/// Safe to call on a database that already has the column — it is a no-op in
+/// that case. After adding the column, sets `sort_order = rowid` for any row
+/// where it is still `0` so that pre-existing entries get a stable ordering.
+pub fn migrate_sort_order(conn: &Connection) -> Result<()> {
+    let has_column: bool = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('entries') WHERE name = 'sort_order'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .map(|n| n > 0)?;
+
+    if !has_column {
+        conn.execute_batch(
+            "ALTER TABLE entries ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0;
+             UPDATE entries SET sort_order = rowid WHERE sort_order = 0;",
+        )?;
+    }
+    Ok(())
 }
 
 /// Opens (or creates) a SQLCipher database at an explicit `path` using `key`.
@@ -76,22 +99,25 @@ pub fn open_db_at(path: impl AsRef<std::path::Path>, key: &str) -> Result<Connec
     Ok(conn)
 }
 
-/// Opens the vault database with the hardcoded key and initialises the schema.
+/// Opens the vault database with the hardcoded key, initialises the schema,
+/// and runs any pending migrations.
 ///
 /// Returns the ready-to-use [`Connection`]. Callers are responsible for
 /// storing it (typically in [`AppState`]).
 pub fn open_and_init() -> Result<Connection> {
     let conn = open_db(DB_KEY)?;
     init_schema(&conn)?;
+    migrate_sort_order(&conn)?;
     Ok(conn)
 }
 
-/// Loads all TOTP entries from the database.
-///
-/// Returns a [`Vec`] of [`TotpEntry`] with no guaranteed ordering.
+/// Loads all TOTP entries from the database, ordered by `sort_order DESC`
+/// (highest value displayed first, i.e. at the top of a group).
 pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
     let mut stmt = conn.prepare(
-        "SELECT id, issuer, account, secret, algorithm, digits, period, `group` FROM entries",
+        "SELECT id, issuer, account, secret, algorithm, digits, period, `group`, sort_order
+         FROM entries
+         ORDER BY sort_order DESC",
     )?;
     let entries = stmt
         .query_map([], |row| {
@@ -99,6 +125,7 @@ pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
             let digits_i64: i64 = row.get(5)?;
             let period: i64 = row.get(6)?;
             let group: Option<String> = row.get(7)?;
+            let sort_order: i64 = row.get(8)?;
 
             let algorithm = Algorithm::try_from(algorithm_str.as_str()).map_err(|e| {
                 rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, e.into())
@@ -110,7 +137,6 @@ pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
                     e.into(),
                 )
             })?;
-
             let period = u64::try_from(period)
                 .ok()
                 .filter(|&p| p > 0)
@@ -131,6 +157,7 @@ pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
                 digits,
                 period,
                 group,
+                sort_order: sort_order.max(0) as u64,
             })
         })?
         .collect::<Result<Vec<_>>>()?;
@@ -138,14 +165,24 @@ pub fn load_entries(conn: &Connection) -> Result<Vec<TotpEntry>> {
     Ok(entries)
 }
 
-/// Inserts or replaces a TOTP entry in the database.
+/// Returns the current maximum `sort_order` across all entries, or `0` if the
+/// table is empty. Used by [`AppState`] to assign `max + 1` to new entries.
+pub fn max_sort_order(conn: &Connection) -> Result<u64> {
+    let result: Option<i64> =
+        conn.query_row("SELECT MAX(sort_order) FROM entries", [], |row| row.get(0))?;
+    Ok(result.map(|v| v.max(0) as u64).unwrap_or(0))
+}
+
+/// Inserts a new TOTP entry. The caller must set `entry.sort_order` before
+/// calling (typically `max_sort_order() + 1`).
 ///
-/// Uses `INSERT OR REPLACE` so calling this with an existing `entry.id`
-/// acts as an upsert.
-pub fn save_entry(conn: &Connection, entry: &TotpEntry) -> Result<()> {
+/// Unlike the removed `save_entry`, this uses a plain `INSERT` — it will fail
+/// if an entry with the same `id` already exists.
+pub fn insert_entry(conn: &Connection, entry: &TotpEntry) -> Result<()> {
     conn.execute(
-        "INSERT OR REPLACE INTO entries (id, issuer, account, secret, algorithm, digits, period, `group`)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO entries
+             (id, issuer, account, secret, algorithm, digits, period, `group`, sort_order)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             entry.id,
             entry.issuer,
@@ -155,15 +192,110 @@ pub fn save_entry(conn: &Connection, entry: &TotpEntry) -> Result<()> {
             entry.digits.as_i64(),
             entry.period as i64,
             entry.group.as_deref(),
+            entry.sort_order as i64,
         ],
     )?;
     Ok(())
 }
 
-/// Deletes the entry with the given `id`. No-ops silently if not found.
-pub fn delete_entry(conn: &Connection, id: &str) -> Result<()> {
-    conn.execute("DELETE FROM entries WHERE id = ?1", params![id])?;
+/// Renames an entry's `issuer` and `account` fields.
+///
+/// Returns the number of rows updated (always 0 or 1). Returns `0` if no
+/// entry with `id` exists — callers should treat 0 as an error.
+pub fn rename_entry_db(conn: &Connection, id: &str, issuer: &str, account: &str) -> Result<usize> {
+    conn.execute(
+        "UPDATE entries SET issuer = ?1, account = ?2 WHERE id = ?3",
+        params![issuer, account, id],
+    )
+}
+
+/// Moves an entry to a different group and places it at the top of that group
+/// by assigning `sort_order = max(sort_order in new group) + 1`.
+///
+/// Pass `None` for `group` to move the entry out of any group (ungrouped).
+/// Returns the number of rows updated (0 = entry not found).
+pub fn update_group_db(conn: &Connection, id: &str, group: Option<&str>) -> Result<usize> {
+    conn.execute(
+        "UPDATE entries SET
+             `group` = ?2,
+             sort_order = COALESCE(
+                 (SELECT MAX(sort_order) FROM entries WHERE `group` IS ?2 AND id != ?1),
+                 0
+             ) + 1
+         WHERE id = ?1",
+        params![id, group],
+    )
+}
+
+/// Returns the `group` and `sort_order` of a single entry by `id`.
+///
+/// Used after [`update_group_db`] to pick up the computed `sort_order` without
+/// re-loading the entire entries table.
+pub fn get_entry_group_and_sort_order(
+    conn: &Connection,
+    id: &str,
+) -> Result<(Option<String>, u64)> {
+    conn.query_row(
+        "SELECT `group`, sort_order FROM entries WHERE id = ?1",
+        params![id],
+        |row| {
+            let group: Option<String> = row.get(0)?;
+            let sort_order: i64 = row.get(1)?;
+            Ok((group, sort_order.max(0) as u64))
+        },
+    )
+}
+
+/// Atomically swaps the `sort_order` of two entries within a transaction.
+///
+/// Used by move-up / move-down to reorder entries inside a group without
+/// disrupting the rest of the list.
+pub fn swap_sort_order_db(conn: &Connection, id_a: &str, id_b: &str) -> Result<()> {
+    let tx = conn.unchecked_transaction()?;
+
+    let so_a: i64 = tx.query_row(
+        "SELECT sort_order FROM entries WHERE id = ?1",
+        params![id_a],
+        |row| row.get(0),
+    )?;
+    let so_b: i64 = tx.query_row(
+        "SELECT sort_order FROM entries WHERE id = ?1",
+        params![id_b],
+        |row| row.get(0),
+    )?;
+
+    tx.execute(
+        "UPDATE entries SET sort_order = ?1 WHERE id = ?2",
+        params![so_b, id_a],
+    )?;
+    tx.execute(
+        "UPDATE entries SET sort_order = ?1 WHERE id = ?2",
+        params![so_a, id_b],
+    )?;
+
+    tx.commit()?;
     Ok(())
+}
+
+/// Deletes the entry with the given `id`.
+///
+/// Returns `Err(QueryReturnedNoRows)` if no entry with that `id` exists,
+/// keeping the caller informed rather than silently succeeding.
+pub fn delete_entry(conn: &Connection, id: &str) -> Result<()> {
+    let n = conn.execute("DELETE FROM entries WHERE id = ?1", params![id])?;
+    if n == 0 {
+        return Err(rusqlite::Error::QueryReturnedNoRows);
+    }
+    Ok(())
+}
+
+/// Deletes every entry from the vault.
+///
+/// Returns the number of rows deleted (may be 0 if the vault was empty —
+/// that is not an error).
+pub fn delete_all_entries(conn: &Connection) -> Result<usize> {
+    let n = conn.execute("DELETE FROM entries", [])?;
+    Ok(n)
 }
 
 #[cfg(test)]
@@ -189,6 +321,7 @@ mod tests {
             digits: Digits::Six,
             period: 30,
             group: None,
+            sort_order: 1,
         }
     }
 
@@ -199,11 +332,18 @@ mod tests {
     }
 
     #[test]
-    fn test_save_and_load_entry() {
+    fn test_migrate_sort_order_is_idempotent() {
+        let conn = test_db();
+        migrate_sort_order(&conn).expect("first migrate failed");
+        migrate_sort_order(&conn).expect("second migrate should be a no-op");
+    }
+
+    #[test]
+    fn test_insert_and_load_entry() {
         let conn = test_db();
 
         let entry = make_entry();
-        save_entry(&conn, &entry).expect("save_entry failed");
+        insert_entry(&conn, &entry).expect("insert_entry failed");
 
         let entries = load_entries(&conn).expect("load_entries failed");
         assert_eq!(entries.len(), 1);
@@ -215,6 +355,59 @@ mod tests {
         assert_eq!(loaded.digits.as_i64(), entry.digits.as_i64());
         assert_eq!(loaded.algorithm.as_str(), entry.algorithm.as_str());
         assert_eq!(loaded.period, entry.period);
+        assert_eq!(loaded.sort_order, entry.sort_order);
+    }
+
+    #[test]
+    fn test_load_entries_ordered_by_sort_order_desc() {
+        let conn = test_db();
+
+        let low = TotpEntry {
+            id: "low".to_string(),
+            issuer: "Low".to_string(),
+            sort_order: 1,
+            ..make_entry()
+        };
+        let high = TotpEntry {
+            id: "high".to_string(),
+            issuer: "High".to_string(),
+            sort_order: 5,
+            ..make_entry()
+        };
+        let mid = TotpEntry {
+            id: "mid".to_string(),
+            issuer: "Mid".to_string(),
+            sort_order: 3,
+            ..make_entry()
+        };
+
+        insert_entry(&conn, &low).unwrap();
+        insert_entry(&conn, &high).unwrap();
+        insert_entry(&conn, &mid).unwrap();
+
+        let entries = load_entries(&conn).unwrap();
+        assert_eq!(entries[0].sort_order, 5);
+        assert_eq!(entries[1].sort_order, 3);
+        assert_eq!(entries[2].sort_order, 1);
+    }
+
+    #[test]
+    fn test_max_sort_order_empty() {
+        let conn = test_db();
+        assert_eq!(max_sort_order(&conn).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_max_sort_order_returns_highest() {
+        let conn = test_db();
+        insert_entry(&conn, &make_entry()).unwrap();
+        let e2 = TotpEntry {
+            id: "e2".to_string(),
+            sort_order: 10,
+            ..make_entry()
+        };
+        insert_entry(&conn, &e2).unwrap();
+        assert_eq!(max_sort_order(&conn).unwrap(), 10);
     }
 
     #[test]
@@ -222,7 +415,7 @@ mod tests {
         let conn = test_db();
 
         let entry = make_entry();
-        save_entry(&conn, &entry).expect("save_entry failed");
+        insert_entry(&conn, &entry).expect("insert_entry failed");
         delete_entry(&conn, &entry.id).expect("delete_entry failed");
 
         let entries = load_entries(&conn).expect("load_entries failed");
@@ -230,23 +423,108 @@ mod tests {
     }
 
     #[test]
-    fn test_upsert_replaces_existing() {
+    fn test_delete_nonexistent_returns_error() {
+        let conn = test_db();
+        let result = delete_entry(&conn, "does-not-exist");
+        assert!(
+            result.is_err(),
+            "deleting nonexistent entry should return Err"
+        );
+    }
+
+    #[test]
+    fn test_rename_entry_db() {
+        let conn = test_db();
+        let entry = make_entry();
+        insert_entry(&conn, &entry).unwrap();
+
+        let n = rename_entry_db(&conn, &entry.id, "New Issuer", "new@example.com").unwrap();
+        assert_eq!(n, 1);
+
+        let entries = load_entries(&conn).unwrap();
+        assert_eq!(entries[0].issuer, "New Issuer");
+        assert_eq!(entries[0].account, "new@example.com");
+    }
+
+    #[test]
+    fn test_rename_entry_db_nonexistent_returns_zero() {
+        let conn = test_db();
+        let n = rename_entry_db(&conn, "no-such-id", "X", "x@x.com").unwrap();
+        assert_eq!(n, 0);
+    }
+
+    #[test]
+    fn test_update_group_db() {
+        let conn = test_db();
+        let entry = make_entry();
+        insert_entry(&conn, &entry).unwrap();
+
+        let n = update_group_db(&conn, &entry.id, Some("Work")).unwrap();
+        assert_eq!(n, 1);
+
+        let entries = load_entries(&conn).unwrap();
+        assert_eq!(entries[0].group, Some("Work".to_string()));
+    }
+
+    #[test]
+    fn test_update_group_db_places_at_top_of_group() {
         let conn = test_db();
 
-        let entry = make_entry();
-        save_entry(&conn, &entry).expect("first save failed");
-
-        let updated = TotpEntry {
-            issuer: "Updated Corp".to_string(),
-            account: "updated@example.com".to_string(),
+        // Two existing Work entries with sort_order 5 and 3
+        let e1 = TotpEntry {
+            id: "e1".to_string(),
+            group: Some("Work".to_string()),
+            sort_order: 5,
             ..make_entry()
         };
-        save_entry(&conn, &updated).expect("upsert failed");
+        let e2 = TotpEntry {
+            id: "e2".to_string(),
+            group: Some("Work".to_string()),
+            sort_order: 3,
+            ..make_entry()
+        };
+        let mover = TotpEntry {
+            id: "mover".to_string(),
+            sort_order: 1,
+            ..make_entry()
+        };
 
-        let entries = load_entries(&conn).expect("load_entries failed");
-        assert_eq!(entries.len(), 1, "upsert must not add a duplicate row");
-        assert_eq!(entries[0].issuer, "Updated Corp");
-        assert_eq!(entries[0].account, "updated@example.com");
+        insert_entry(&conn, &e1).unwrap();
+        insert_entry(&conn, &e2).unwrap();
+        insert_entry(&conn, &mover).unwrap();
+
+        update_group_db(&conn, "mover", Some("Work")).unwrap();
+
+        let entries = load_entries(&conn).unwrap();
+        let moved = entries.iter().find(|e| e.id == "mover").unwrap();
+        // Should be max(5, 3) + 1 = 6
+        assert_eq!(moved.sort_order, 6);
+    }
+
+    #[test]
+    fn test_swap_sort_order_db() {
+        let conn = test_db();
+
+        let e1 = TotpEntry {
+            id: "e1".to_string(),
+            sort_order: 10,
+            ..make_entry()
+        };
+        let e2 = TotpEntry {
+            id: "e2".to_string(),
+            sort_order: 5,
+            ..make_entry()
+        };
+        insert_entry(&conn, &e1).unwrap();
+        insert_entry(&conn, &e2).unwrap();
+
+        swap_sort_order_db(&conn, "e1", "e2").unwrap();
+
+        let entries = load_entries(&conn).unwrap();
+        let after_e1 = entries.iter().find(|e| e.id == "e1").unwrap();
+        let after_e2 = entries.iter().find(|e| e.id == "e2").unwrap();
+        assert_eq!(after_e1.sort_order, 5);
+        assert_eq!(after_e2.sort_order, 10);
     }
 
     #[test]
@@ -254,7 +532,7 @@ mod tests {
         let conn = test_db();
 
         let entry = make_entry(); // group: None
-        save_entry(&conn, &entry).expect("save_entry failed");
+        insert_entry(&conn, &entry).expect("insert_entry failed");
 
         let entries = load_entries(&conn).expect("load_entries failed");
         assert_eq!(entries.len(), 1);
@@ -269,7 +547,7 @@ mod tests {
             group: Some("Work".to_string()),
             ..make_entry()
         };
-        save_entry(&conn, &entry).expect("save_entry failed");
+        insert_entry(&conn, &entry).expect("insert_entry failed");
 
         let entries = load_entries(&conn).expect("load_entries failed");
         assert_eq!(entries.len(), 1);
@@ -287,7 +565,7 @@ mod tests {
                 .expect("set key failed");
             init_schema(&conn).expect("init_schema failed");
             let entry = make_entry();
-            save_entry(&conn, &entry).expect("save_entry failed");
+            insert_entry(&conn, &entry).expect("insert_entry failed");
         }
 
         {

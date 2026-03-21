@@ -53,23 +53,27 @@ impl AppState {
         Self::try_new().expect("failed to open vault database")
     }
 
-    /// Persists `entry` to the vault database then appends it to the in-memory list.
+    /// Assigns `sort_order = max + 1` and persists `entry` to the vault
+    /// database, then appends it to the in-memory list (sorted by sort_order DESC).
     ///
     /// Returns `Err` if the database write fails; the in-memory list is **not**
     /// updated in that case, keeping it in sync with the on-disk state.
-    pub fn add_entry(&mut self, entry: TotpEntry) -> Result<(), TotpError> {
+    pub fn add_entry(&mut self, mut entry: TotpEntry) -> Result<(), TotpError> {
         let arc = self.db.as_ref().expect("DB not initialized");
         let conn = arc.lock().expect("DB mutex poisoned");
-        storage::save_entry(&conn, &entry)?;
+        let max_so = storage::max_sort_order(&conn)?;
+        entry.sort_order = max_so + 1;
+        storage::insert_entry(&conn, &entry)?;
         self.entries.push(entry);
+        self.entries.sort_by(|a, b| b.sort_order.cmp(&a.sort_order));
         Ok(())
     }
 
     /// Removes the entry with `id` from the vault database then removes it from
     /// the in-memory list.
     ///
-    /// Returns `Err` if the database delete fails; the in-memory list is **not**
-    /// updated in that case, keeping it in sync with the on-disk state.
+    /// Returns `Err` if the database delete fails (including if the entry does
+    /// not exist); the in-memory list is **not** updated in that case.
     pub fn remove_entry(&mut self, id: &str) -> Result<(), TotpError> {
         let arc = self.db.as_ref().expect("DB not initialized");
         let conn = arc.lock().expect("DB mutex poisoned");
@@ -78,7 +82,165 @@ impl AppState {
         Ok(())
     }
 
-    /// Returns a slice of all vault entries currently held in memory.
+    /// Deletes all entries from the vault database and clears the in-memory list.
+    ///
+    /// Succeeds even if the vault is already empty.
+    pub fn remove_all_entries(&mut self) -> Result<(), TotpError> {
+        let arc = self.db.as_ref().expect("DB not initialized");
+        let conn = arc.lock().expect("DB mutex poisoned");
+        storage::delete_all_entries(&conn)?;
+        self.entries.clear();
+        Ok(())
+    }
+
+    /// Renames the issuer and account fields of the entry with `id`.
+    ///
+    /// Returns `Err` if the entry does not exist or the database write fails.
+    pub fn rename_entry(&mut self, id: &str, issuer: &str, account: &str) -> Result<(), TotpError> {
+        let arc = self.db.as_ref().expect("DB not initialized");
+        let conn = arc.lock().expect("DB mutex poisoned");
+        let n = storage::rename_entry_db(&conn, id, issuer, account)?;
+        if n == 0 {
+            return Err(TotpError::StorageError(
+                rusqlite::Error::QueryReturnedNoRows,
+            ));
+        }
+        if let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) {
+            entry.issuer = issuer.to_string();
+            entry.account = account.to_string();
+        }
+        Ok(())
+    }
+
+    /// Moves the entry with `id` to a different group, placing it at the top
+    /// of that group (sort_order = max in new group + 1).
+    ///
+    /// Pass `None` to move the entry to the ungrouped section.
+    /// Returns `Err` if the entry does not exist or the database write fails.
+    pub fn update_entry_group(&mut self, id: &str, group: Option<&str>) -> Result<(), TotpError> {
+        let arc = self.db.as_ref().expect("DB not initialized");
+        let conn = arc.lock().expect("DB mutex poisoned");
+        let n = storage::update_group_db(&conn, id, group)?;
+        if n == 0 {
+            return Err(TotpError::StorageError(
+                rusqlite::Error::QueryReturnedNoRows,
+            ));
+        }
+        // Fetch only the updated entry's new group/sort_order instead of reloading all entries.
+        let (new_group, new_sort_order) = storage::get_entry_group_and_sort_order(&conn, id)?;
+        if let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) {
+            entry.group = new_group;
+            entry.sort_order = new_sort_order;
+        }
+        self.entries.sort_by(|a, b| b.sort_order.cmp(&a.sort_order));
+        Ok(())
+    }
+
+    /// Moves the entry with `id` one position up within its group (higher sort_order
+    /// = closer to the top of the displayed list).
+    ///
+    /// Returns `Err` if the entry is already first in its group, does not exist,
+    /// or the database write fails.
+    pub fn move_entry_up(&mut self, id: &str) -> Result<(), TotpError> {
+        // Find this entry's index in the flat sorted vec
+        let pos = self
+            .entries
+            .iter()
+            .position(|e| e.id == id)
+            .ok_or_else(|| TotpError::StorageError(rusqlite::Error::QueryReturnedNoRows))?;
+
+        let group = self.entries[pos].group.clone();
+
+        // Collect indices of entries in the same group, in sort_order DESC order
+        let group_positions: Vec<usize> = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.group == group)
+            .map(|(i, _)| i)
+            .collect();
+
+        let group_idx = group_positions
+            .iter()
+            .position(|&p| p == pos)
+            .ok_or_else(|| TotpError::StorageError(rusqlite::Error::QueryReturnedNoRows))?;
+
+        if group_idx == 0 {
+            return Err(TotpError::StorageError(
+                rusqlite::Error::QueryReturnedNoRows,
+            ));
+        }
+
+        // Swap with the entry above (lower index = higher sort_order = visually above)
+        let above_pos = group_positions[group_idx - 1];
+        let id_above = self.entries[above_pos].id.clone();
+
+        let arc = self.db.as_ref().expect("DB not initialized");
+        let conn = arc.lock().expect("DB mutex poisoned");
+        storage::swap_sort_order_db(&conn, id, &id_above)?;
+
+        // Swap sort_orders in memory
+        let so_a = self.entries[pos].sort_order;
+        let so_b = self.entries[above_pos].sort_order;
+        self.entries[pos].sort_order = so_b;
+        self.entries[above_pos].sort_order = so_a;
+        self.entries.sort_by(|a, b| b.sort_order.cmp(&a.sort_order));
+
+        Ok(())
+    }
+
+    /// Moves the entry with `id` one position down within its group (lower sort_order
+    /// = closer to the bottom of the displayed list).
+    ///
+    /// Returns `Err` if the entry is already last in its group, does not exist,
+    /// or the database write fails.
+    pub fn move_entry_down(&mut self, id: &str) -> Result<(), TotpError> {
+        let pos = self
+            .entries
+            .iter()
+            .position(|e| e.id == id)
+            .ok_or_else(|| TotpError::StorageError(rusqlite::Error::QueryReturnedNoRows))?;
+
+        let group = self.entries[pos].group.clone();
+
+        let group_positions: Vec<usize> = self
+            .entries
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.group == group)
+            .map(|(i, _)| i)
+            .collect();
+
+        let group_idx = group_positions
+            .iter()
+            .position(|&p| p == pos)
+            .ok_or_else(|| TotpError::StorageError(rusqlite::Error::QueryReturnedNoRows))?;
+
+        if group_idx == group_positions.len() - 1 {
+            return Err(TotpError::StorageError(
+                rusqlite::Error::QueryReturnedNoRows,
+            ));
+        }
+
+        // Swap with the entry below (higher index = lower sort_order = visually below)
+        let below_pos = group_positions[group_idx + 1];
+        let id_below = self.entries[below_pos].id.clone();
+
+        let arc = self.db.as_ref().expect("DB not initialized");
+        let conn = arc.lock().expect("DB mutex poisoned");
+        storage::swap_sort_order_db(&conn, id, &id_below)?;
+
+        let so_a = self.entries[pos].sort_order;
+        let so_b = self.entries[below_pos].sort_order;
+        self.entries[pos].sort_order = so_b;
+        self.entries[below_pos].sort_order = so_a;
+        self.entries.sort_by(|a, b| b.sort_order.cmp(&a.sort_order));
+
+        Ok(())
+    }
+
+    /// Returns a slice of all vault entries currently held in memory,
+    /// ordered by `sort_order DESC`.
     pub fn get_entries(&self) -> &[TotpEntry] {
         &self.entries
     }

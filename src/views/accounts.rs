@@ -23,6 +23,7 @@ fn global_seconds_remaining() -> u8 {
 ///
 /// Priority order: Dev → Work → Personal, then any other named groups alphabetically.
 /// Entries with `group: None` are returned separately and rendered flat without a label.
+/// Within each group, entries are sorted by `sort_order DESC` (highest = top).
 fn group_entries(entries: Vec<TotpEntry>) -> (Vec<(String, Vec<TotpEntry>)>, Vec<TotpEntry>) {
     const PRIORITY: &[&str] = &["Dev", "Work", "Personal"];
 
@@ -47,11 +48,16 @@ fn group_entries(entries: Vec<TotpEntry>) -> (Vec<(String, Vec<TotpEntry>)>, Vec
     remaining.sort_by(|a, b| a.0.cmp(&b.0));
     ordered.extend(remaining);
 
+    // Sort within each group and ungrouped by sort_order DESC
+    for (_, entries) in &mut ordered {
+        entries.sort_by(|a, b| b.sort_order.cmp(&a.sort_order));
+    }
+    ungrouped.sort_by(|a, b| b.sort_order.cmp(&a.sort_order));
+
     (ordered, ungrouped)
 }
 
-/// Header bar for the Accounts view showing the title, account count,
-/// a live TOTP refresh countdown, and an add button.
+/// Header bar for the Accounts view.
 #[component]
 fn AccountsHeader() -> Element {
     let mut secs = use_signal(global_seconds_remaining);
@@ -94,9 +100,7 @@ fn AccountsHeader() -> Element {
     }
 }
 
-/// Controlled search input that writes the user's query into `query`.
-///
-/// Displays a clear button when the query is non-empty.
+/// Controlled search input.
 #[component]
 fn SearchBar(query: Signal<String>) -> Element {
     let mut focused = use_signal(|| false);
@@ -134,8 +138,7 @@ fn SearchBar(query: Signal<String>) -> Element {
 ///
 /// When no search is active, entries are grouped by their `group` field with
 /// priority ordering (Dev → Work → Personal → others). When a search query is
-/// active, a flat filtered list is shown without section labels. Two distinct
-/// empty states handle the no-entries and no-results cases.
+/// active, a flat filtered list is shown without section labels.
 #[component]
 pub fn Accounts() -> Element {
     let query = use_signal(String::new);
@@ -160,7 +163,6 @@ pub fn Accounts() -> Element {
             SearchBar { query }
 
             if !has_any_entries {
-                // No entries at all
                 div { class: "flex flex-col items-center justify-center mt-16 gap-2",
                     IMagnifier {}
                     span { class: "text-sm text-[#252525]", "No accounts yet" }
@@ -169,7 +171,6 @@ pub fn Accounts() -> Element {
                     }
                 }
             } else if search_active && filtered.is_empty() {
-                // Search returned no results
                 div { class: "flex flex-col items-center justify-center mt-16 gap-2",
                     IMagnifier {}
                     span { class: "text-sm text-[#252525]",
@@ -177,10 +178,20 @@ pub fn Accounts() -> Element {
                     }
                 }
             } else if search_active {
-                // Flat filtered list — no section labels
+                // Flat filtered list — no section labels, move disabled (no group context)
                 div { class: "flex-1 overflow-y-auto px-6 pb-4",
                     for entry in filtered {
-                        AccountRow { entry }
+                        {
+                            let id = entry.id.clone();
+                            rsx! {
+                                AccountRow {
+                                    key: "{id}",
+                                    entry,
+                                    is_first_in_group: true,
+                                    is_last_in_group: true,
+                                }
+                            }
+                        }
                     }
                 }
             } else {
@@ -188,15 +199,50 @@ pub fn Accounts() -> Element {
                 div { class: "flex-1 overflow-y-auto px-6 pb-4",
                     {
                         let (labeled, ungrouped) = group_entries(filtered);
+                        let has_labeled = !labeled.is_empty();
+                        let has_ungrouped = !ungrouped.is_empty();
                         rsx! {
                             for (group_name, group_entries) in labeled {
-                                SectionLabel { label: group_name }
-                                for entry in group_entries {
-                                    AccountRow { entry }
+                                {
+                                    let len = group_entries.len();
+                                    rsx! {
+                                        SectionLabel { label: group_name }
+                                        for (idx, entry) in group_entries.into_iter().enumerate() {
+                                            {
+                                                let id = entry.id.clone();
+                                                rsx! {
+                                                    AccountRow {
+                                                        key: "{id}",
+                                                        entry,
+                                                        is_first_in_group: idx == 0,
+                                                        is_last_in_group: idx == len - 1,
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
-                            for entry in ungrouped {
-                                AccountRow { entry }
+                            if has_labeled && has_ungrouped {
+                                div { class: "h-[1px] bg-edge my-2" }
+                            }
+                            {
+                                let len = ungrouped.len();
+                                rsx! {
+                                    for (idx, entry) in ungrouped.into_iter().enumerate() {
+                                        {
+                                            let id = entry.id.clone();
+                                            rsx! {
+                                                AccountRow {
+                                                    key: "{id}",
+                                                    entry,
+                                                    is_first_in_group: idx == 0,
+                                                    is_last_in_group: idx == len - 1,
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -221,6 +267,7 @@ mod tests {
             digits: Digits::Six,
             period: 30,
             group: group.map(str::to_string),
+            sort_order: 0,
         }
     }
 
@@ -265,5 +312,21 @@ mod tests {
         assert_eq!(labeled[0].0, "Work");
         assert_eq!(ungrouped.len(), 1);
         assert_eq!(ungrouped[0].issuer, "App2");
+    }
+
+    #[test]
+    fn entries_within_group_sorted_by_sort_order_desc() {
+        let mut e1 = entry("App1", Some("Work"));
+        e1.sort_order = 1;
+        let mut e2 = entry("App2", Some("Work"));
+        e2.sort_order = 5;
+        let mut e3 = entry("App3", Some("Work"));
+        e3.sort_order = 3;
+
+        let (labeled, _) = group_entries(vec![e1, e2, e3]);
+        let work = &labeled[0].1;
+        assert_eq!(work[0].sort_order, 5);
+        assert_eq!(work[1].sort_order, 3);
+        assert_eq!(work[2].sort_order, 1);
     }
 }

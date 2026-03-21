@@ -9,6 +9,7 @@ use crate::components::{
     toast::{TOAST, ToastData, next_toast_id},
     toggle::Toggle,
 };
+use crate::models::app_state::APP_STATE;
 use crate::totp::initials;
 
 fn nyi() {
@@ -245,8 +246,18 @@ pub fn Settings() -> Element {
                 DeleteConfirm {
                     on_cancel: move |_| delete_confirm_open.set(false),
                     on_delete: move |_| {
-                        nyi();
+                        let ok = APP_STATE.write().remove_all_entries().is_ok();
                         delete_confirm_open.set(false);
+                        *TOAST.write() = Some(ToastData {
+                            id: next_toast_id(),
+                            text: if ok {
+                                "All accounts deleted".to_string()
+                            } else {
+                                "Failed to delete accounts".to_string()
+                            },
+                            bg_color: if ok { "#0f1825".to_string() } else { "#1e0808".to_string() },
+                            text_color: if ok { "#4f8ef7".to_string() } else { "#f75f4f".to_string() },
+                        });
                     },
                 }
             }
