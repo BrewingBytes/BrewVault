@@ -57,6 +57,18 @@ pub fn ContextMenu() -> Element {
     let mut new_cat_input = use_signal(String::new);
     let mut new_cat_expanded = use_signal(|| false);
 
+    // Focus the overlay div when the menu opens so Escape key events are received.
+    use_effect(move || {
+        if CONTEXT_MENU.read().is_some() {
+            spawn(async move {
+                let _ = dioxus::document::eval(
+                    "document.getElementById('ctx-menu-overlay')?.focus()",
+                )
+                .await;
+            });
+        }
+    });
+
     // Reset to Main view whenever a new menu opens (different entry ID).
     use_effect(move || {
         let new_id = CONTEXT_MENU
@@ -134,7 +146,15 @@ pub fn ContextMenu() -> Element {
                     // Rename
                     div {
                         class: ITEM_CLASS,
+                        tabindex: "0",
+                        role: "menuitem",
                         onclick: move |e| { e.stop_propagation(); view.set(MenuView::Rename); },
+                        onkeydown: move |e: KeyboardEvent| {
+                            if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                                e.stop_propagation();
+                                view.set(MenuView::Rename);
+                            }
+                        },
                         IEdit {}
                         span { "Rename" }
                     }
@@ -145,12 +165,38 @@ pub fn ContextMenu() -> Element {
                     if can_move_up {
                         div {
                             class: ITEM_CLASS,
+                            tabindex: "0",
+                            role: "menuitem",
                             onclick: {
                                 let id = entry.id.clone();
                                 move |e| {
                                     e.stop_propagation();
-                                    let _ = APP_STATE.write().move_entry_up(&id);
+                                    if APP_STATE.write().move_entry_up(&id).is_err() {
+                                        *TOAST.write() = Some(ToastData {
+                                            id: next_toast_id(),
+                                            text: "Failed to move entry".to_string(),
+                                            bg_color: "#1e0808".to_string(),
+                                            text_color: "#f75f4f".to_string(),
+                                        });
+                                    }
                                     *CONTEXT_MENU.write() = None;
+                                }
+                            },
+                            onkeydown: {
+                                let id = entry.id.clone();
+                                move |e: KeyboardEvent| {
+                                    if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                                        e.stop_propagation();
+                                        if APP_STATE.write().move_entry_up(&id).is_err() {
+                                            *TOAST.write() = Some(ToastData {
+                                                id: next_toast_id(),
+                                                text: "Failed to move entry".to_string(),
+                                                bg_color: "#1e0808".to_string(),
+                                                text_color: "#f75f4f".to_string(),
+                                            });
+                                        }
+                                        *CONTEXT_MENU.write() = None;
+                                    }
                                 }
                             },
                             IArrowUp {}
@@ -168,12 +214,38 @@ pub fn ContextMenu() -> Element {
                     if can_move_down {
                         div {
                             class: ITEM_CLASS,
+                            tabindex: "0",
+                            role: "menuitem",
                             onclick: {
                                 let id = entry.id.clone();
                                 move |e| {
                                     e.stop_propagation();
-                                    let _ = APP_STATE.write().move_entry_down(&id);
+                                    if APP_STATE.write().move_entry_down(&id).is_err() {
+                                        *TOAST.write() = Some(ToastData {
+                                            id: next_toast_id(),
+                                            text: "Failed to move entry".to_string(),
+                                            bg_color: "#1e0808".to_string(),
+                                            text_color: "#f75f4f".to_string(),
+                                        });
+                                    }
                                     *CONTEXT_MENU.write() = None;
+                                }
+                            },
+                            onkeydown: {
+                                let id = entry.id.clone();
+                                move |e: KeyboardEvent| {
+                                    if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                                        e.stop_propagation();
+                                        if APP_STATE.write().move_entry_down(&id).is_err() {
+                                            *TOAST.write() = Some(ToastData {
+                                                id: next_toast_id(),
+                                                text: "Failed to move entry".to_string(),
+                                                bg_color: "#1e0808".to_string(),
+                                                text_color: "#f75f4f".to_string(),
+                                            });
+                                        }
+                                        *CONTEXT_MENU.write() = None;
+                                    }
                                 }
                             },
                             IArrowDown {}
@@ -192,7 +264,15 @@ pub fn ContextMenu() -> Element {
                     // Change Category
                     div {
                         class: ITEM_CLASS,
+                        tabindex: "0",
+                        role: "menuitem",
                         onclick: move |e| { e.stop_propagation(); view.set(MenuView::Category); },
+                        onkeydown: move |e: KeyboardEvent| {
+                            if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                                e.stop_propagation();
+                                view.set(MenuView::Category);
+                            }
+                        },
                         IFolder {}
                         span { "Change Category" }
                     }
@@ -202,12 +282,24 @@ pub fn ContextMenu() -> Element {
                     // Delete — danger color
                     div {
                         class: "px-[14px] py-[9px] text-[13.5px] text-danger flex items-center gap-[10px] hover:bg-surface2 transition-colors duration-[80ms] cursor-pointer select-none",
+                        tabindex: "0",
+                        role: "menuitem",
                         onclick: {
                             let e_clone = entry.clone();
                             move |ev| {
                                 ev.stop_propagation();
                                 *DELETE_MODAL.write() = Some(e_clone.clone());
                                 *CONTEXT_MENU.write() = None;
+                            }
+                        },
+                        onkeydown: {
+                            let e_clone = entry.clone();
+                            move |ev: KeyboardEvent| {
+                                if ev.key() == Key::Enter || ev.key() == Key::Character(" ".to_string()) {
+                                    ev.stop_propagation();
+                                    *DELETE_MODAL.write() = Some(e_clone.clone());
+                                    *CONTEXT_MENU.write() = None;
+                                }
                             }
                         },
                         ITrash {}
@@ -247,7 +339,15 @@ pub fn ContextMenu() -> Element {
                     // Back arrow row
                     div {
                         class: "px-[14px] py-[9px] text-[13.5px] text-muted flex items-center gap-[10px] hover:bg-surface2 transition-colors duration-[80ms] cursor-pointer select-none",
+                        tabindex: "0",
+                        role: "menuitem",
                         onclick: move |e| { e.stop_propagation(); view.set(MenuView::Main); },
+                        onkeydown: move |e: KeyboardEvent| {
+                            if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                                e.stop_propagation();
+                                view.set(MenuView::Main);
+                            }
+                        },
                         IArrowLeft {}
                         span { "Change Category" }
                     }
@@ -281,22 +381,51 @@ pub fn ContextMenu() -> Element {
                                 rsx! {
                                     div {
                                         class: ITEM_CLASS,
-                                        onclick: move |ev| {
-                                            ev.stop_propagation();
-                                            let gname = g.clone();
-                                            if APP_STATE
-                                                .write()
-                                                .update_entry_group(&entry_id, Some(&gname))
-                                                .is_ok()
-                                            {
-                                                *TOAST.write() = Some(ToastData {
-                                                    id: next_toast_id(),
-                                                    text: format!("Moved to {gname}"),
-                                                    bg_color: "#0f1825".to_string(),
-                                                    text_color: "#4f8ef7".to_string(),
-                                                });
+                                        tabindex: "0",
+                                        role: "menuitem",
+                                        onclick: {
+                                            let g = g.clone();
+                                            let entry_id = entry_id.clone();
+                                            move |ev| {
+                                                ev.stop_propagation();
+                                                let gname = g.clone();
+                                                if APP_STATE
+                                                    .write()
+                                                    .update_entry_group(&entry_id, Some(&gname))
+                                                    .is_ok()
+                                                {
+                                                    *TOAST.write() = Some(ToastData {
+                                                        id: next_toast_id(),
+                                                        text: format!("Moved to {gname}"),
+                                                        bg_color: "#0f1825".to_string(),
+                                                        text_color: "#4f8ef7".to_string(),
+                                                    });
+                                                }
+                                                *CONTEXT_MENU.write() = None;
                                             }
-                                            *CONTEXT_MENU.write() = None;
+                                        },
+                                        onkeydown: {
+                                            let g = g.clone();
+                                            let entry_id = entry_id.clone();
+                                            move |ev: KeyboardEvent| {
+                                                if ev.key() == Key::Enter || ev.key() == Key::Character(" ".to_string()) {
+                                                    ev.stop_propagation();
+                                                    let gname = g.clone();
+                                                    if APP_STATE
+                                                        .write()
+                                                        .update_entry_group(&entry_id, Some(&gname))
+                                                        .is_ok()
+                                                    {
+                                                        *TOAST.write() = Some(ToastData {
+                                                            id: next_toast_id(),
+                                                            text: format!("Moved to {gname}"),
+                                                            bg_color: "#0f1825".to_string(),
+                                                            text_color: "#4f8ef7".to_string(),
+                                                        });
+                                                    }
+                                                    *CONTEXT_MENU.write() = None;
+                                                }
+                                            }
                                         },
                                         IFolder {}
                                         span { "{g}" }
@@ -312,7 +441,15 @@ pub fn ContextMenu() -> Element {
                     if !new_cat_expanded() {
                         div {
                             class: "px-[14px] py-[9px] text-[13.5px] text-muted italic flex items-center gap-[10px] hover:bg-surface2 transition-colors duration-[80ms] cursor-pointer select-none",
+                            tabindex: "0",
+                            role: "menuitem",
                             onclick: move |e| { e.stop_propagation(); new_cat_expanded.set(true); },
+                            onkeydown: move |e: KeyboardEvent| {
+                                if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                                    e.stop_propagation();
+                                    new_cat_expanded.set(true);
+                                }
+                            },
                             IPlus {}
                             span { "New category…" }
                         }
@@ -401,21 +538,44 @@ pub fn ContextMenu() -> Element {
                         rsx! {
                             div {
                                 class: "px-[14px] py-[9px] text-[13.5px] text-muted italic flex items-center gap-[10px] hover:bg-surface2 transition-colors duration-[80ms] cursor-pointer select-none",
-                                onclick: move |ev| {
-                                    ev.stop_propagation();
-                                    if APP_STATE
-                                        .write()
-                                        .update_entry_group(&entry_id, None)
-                                        .is_ok()
-                                    {
-                                        *TOAST.write() = Some(ToastData {
-                                            id: next_toast_id(),
-                                            text: "Removed from group".to_string(),
-                                            bg_color: "#0f1825".to_string(),
-                                            text_color: "#4f8ef7".to_string(),
-                                        });
+                                tabindex: "0",
+                                role: "menuitem",
+                                onclick: {
+                                    let entry_id = entry_id.clone();
+                                    move |ev| {
+                                        ev.stop_propagation();
+                                        if APP_STATE
+                                            .write()
+                                            .update_entry_group(&entry_id, None)
+                                            .is_ok()
+                                        {
+                                            *TOAST.write() = Some(ToastData {
+                                                id: next_toast_id(),
+                                                text: "Removed from group".to_string(),
+                                                bg_color: "#0f1825".to_string(),
+                                                text_color: "#4f8ef7".to_string(),
+                                            });
+                                        }
+                                        *CONTEXT_MENU.write() = None;
                                     }
-                                    *CONTEXT_MENU.write() = None;
+                                },
+                                onkeydown: move |ev: KeyboardEvent| {
+                                    if ev.key() == Key::Enter || ev.key() == Key::Character(" ".to_string()) {
+                                        ev.stop_propagation();
+                                        if APP_STATE
+                                            .write()
+                                            .update_entry_group(&entry_id, None)
+                                            .is_ok()
+                                        {
+                                            *TOAST.write() = Some(ToastData {
+                                                id: next_toast_id(),
+                                                text: "Removed from group".to_string(),
+                                                bg_color: "#0f1825".to_string(),
+                                                text_color: "#4f8ef7".to_string(),
+                                            });
+                                        }
+                                        *CONTEXT_MENU.write() = None;
+                                    }
                                 },
                                 ICircleSlash {}
                                 span { "No group" }

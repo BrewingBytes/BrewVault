@@ -246,25 +246,17 @@ pub fn Settings() -> Element {
                 DeleteConfirm {
                     on_cancel: move |_| delete_confirm_open.set(false),
                     on_delete: move |_| {
-                        let result = APP_STATE.write().remove_all_entries();
+                        let ok = APP_STATE.write().remove_all_entries().is_ok();
                         delete_confirm_open.set(false);
                         *TOAST.write() = Some(ToastData {
                             id: next_toast_id(),
-                            text: if result.is_ok() {
+                            text: if ok {
                                 "All accounts deleted".to_string()
                             } else {
                                 "Failed to delete accounts".to_string()
                             },
-                            bg_color: if result.is_ok() {
-                                "#0f1825".to_string()
-                            } else {
-                                "#1e0808".to_string()
-                            },
-                            text_color: if result.is_ok() {
-                                "#4f8ef7".to_string()
-                            } else {
-                                "#f75f4f".to_string()
-                            },
+                            bg_color: if ok { "#0f1825".to_string() } else { "#1e0808".to_string() },
+                            text_color: if ok { "#4f8ef7".to_string() } else { "#f75f4f".to_string() },
                         });
                     },
                 }

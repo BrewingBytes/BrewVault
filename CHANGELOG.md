@@ -6,7 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - Right-click context menu on account rows — rename, move up/down within a group, change category (with inline picker), and delete with confirmation
-- Long-press (500ms) opens the context menu on touch devices
+- Long-press (600ms) opens the context menu on touch devices
 - `sort_order` column on every entry — lets you arrange accounts in any order you like; existing databases are migrated automatically on first launch
 - Move Up / Move Down actions keep entries within their group; boundary items are shown greyed-out so you always know where you are
 - Category picker with inline "New category…" input and "No group" option to move an account out of any group

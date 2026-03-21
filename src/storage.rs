@@ -77,8 +77,7 @@ pub fn migrate_sort_order(conn: &Connection) -> Result<()> {
             [],
             |row| row.get::<_, i64>(0),
         )
-        .map(|n| n > 0)
-        .unwrap_or(false);
+        .map(|n| n > 0)?;
 
     if !has_column {
         conn.execute_batch(
@@ -225,6 +224,25 @@ pub fn update_group_db(conn: &Connection, id: &str, group: Option<&str>) -> Resu
              ) + 1
          WHERE id = ?1",
         params![id, group],
+    )
+}
+
+/// Returns the `group` and `sort_order` of a single entry by `id`.
+///
+/// Used after [`update_group_db`] to pick up the computed `sort_order` without
+/// re-loading the entire entries table.
+pub fn get_entry_group_and_sort_order(
+    conn: &Connection,
+    id: &str,
+) -> Result<(Option<String>, u64)> {
+    conn.query_row(
+        "SELECT `group`, sort_order FROM entries WHERE id = ?1",
+        params![id],
+        |row| {
+            let group: Option<String> = row.get(0)?;
+            let sort_order: i64 = row.get(1)?;
+            Ok((group, sort_order.max(0) as u64))
+        },
     )
 }
 

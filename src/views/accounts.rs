@@ -181,11 +181,16 @@ pub fn Accounts() -> Element {
                 // Flat filtered list — no section labels, move disabled (no group context)
                 div { class: "flex-1 overflow-y-auto px-6 pb-4",
                     for entry in filtered {
-                        AccountRow {
-                            key: "{entry.id}",
-                            entry: entry.clone(),
-                            is_first_in_group: true,
-                            is_last_in_group: true,
+                        {
+                            let id = entry.id.clone();
+                            rsx! {
+                                AccountRow {
+                                    key: "{id}",
+                                    entry,
+                                    is_first_in_group: true,
+                                    is_last_in_group: true,
+                                }
+                            }
                         }
                     }
                 }
@@ -203,11 +208,16 @@ pub fn Accounts() -> Element {
                                     rsx! {
                                         SectionLabel { label: group_name }
                                         for (idx, entry) in group_entries.into_iter().enumerate() {
-                                            AccountRow {
-                                                key: "{entry.id}",
-                                                entry: entry.clone(),
-                                                is_first_in_group: idx == 0,
-                                                is_last_in_group: idx == len - 1,
+                                            {
+                                                let id = entry.id.clone();
+                                                rsx! {
+                                                    AccountRow {
+                                                        key: "{id}",
+                                                        entry,
+                                                        is_first_in_group: idx == 0,
+                                                        is_last_in_group: idx == len - 1,
+                                                    }
+                                                }
                                             }
                                         }
                                     }
@@ -220,11 +230,16 @@ pub fn Accounts() -> Element {
                                 let len = ungrouped.len();
                                 rsx! {
                                     for (idx, entry) in ungrouped.into_iter().enumerate() {
-                                        AccountRow {
-                                            key: "{entry.id}",
-                                            entry: entry.clone(),
-                                            is_first_in_group: idx == 0,
-                                            is_last_in_group: idx == len - 1,
+                                        {
+                                            let id = entry.id.clone();
+                                            rsx! {
+                                                AccountRow {
+                                                    key: "{id}",
+                                                    entry,
+                                                    is_first_in_group: idx == 0,
+                                                    is_last_in_group: idx == len - 1,
+                                                }
+                                            }
                                         }
                                     }
                                 }

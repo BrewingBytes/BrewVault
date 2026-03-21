@@ -92,15 +92,25 @@ pub fn DeleteConfirmModal() -> Element {
                         on_click: move |_| {
                             let id = entry_id.clone();
                             let iss = issuer.clone();
-                            if APP_STATE.write().remove_entry(&id).is_ok() {
-                                *TOAST.write() = Some(ToastData {
-                                    id: next_toast_id(),
-                                    text: format!("Deleted {iss}"),
-                                    bg_color: "#1a0a0a".to_string(),
-                                    text_color: "#f75f4f".to_string(),
-                                });
+                            match APP_STATE.write().remove_entry(&id) {
+                                Ok(()) => {
+                                    *TOAST.write() = Some(ToastData {
+                                        id: next_toast_id(),
+                                        text: format!("Deleted {iss}"),
+                                        bg_color: "#1a0a0a".to_string(),
+                                        text_color: "#f75f4f".to_string(),
+                                    });
+                                    *DELETE_MODAL.write() = None;
+                                }
+                                Err(_) => {
+                                    *TOAST.write() = Some(ToastData {
+                                        id: next_toast_id(),
+                                        text: format!("Failed to delete {iss}"),
+                                        bg_color: "#1e0808".to_string(),
+                                        text_color: "#f75f4f".to_string(),
+                                    });
+                                }
                             }
-                            *DELETE_MODAL.write() = None;
                         },
                     }
                 }

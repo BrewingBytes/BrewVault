@@ -126,13 +126,11 @@ impl AppState {
                 rusqlite::Error::QueryReturnedNoRows,
             ));
         }
-        // Reload the updated sort_order from the DB (the SQL computed it for us)
-        let updated = storage::load_entries(&conn)?;
-        if let Some(fresh) = updated.iter().find(|e| e.id == id)
-            && let Some(entry) = self.entries.iter_mut().find(|e| e.id == id)
-        {
-            entry.group = fresh.group.clone();
-            entry.sort_order = fresh.sort_order;
+        // Fetch only the updated entry's new group/sort_order instead of reloading all entries.
+        let (new_group, new_sort_order) = storage::get_entry_group_and_sort_order(&conn, id)?;
+        if let Some(entry) = self.entries.iter_mut().find(|e| e.id == id) {
+            entry.group = new_group;
+            entry.sort_order = new_sort_order;
         }
         self.entries.sort_by(|a, b| b.sort_order.cmp(&a.sort_order));
         Ok(())
