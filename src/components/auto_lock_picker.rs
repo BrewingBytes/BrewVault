@@ -55,6 +55,9 @@ pub fn AutoLockPicker(on_close: EventHandler<()>) -> Element {
                                 div {
                                     key: "{secs}",
                                     class: "flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-surface2 transition-colors duration-[80ms]",
+                                    role: "option",
+                                    aria_selected: if is_selected { "true" } else { "false" },
+                                    tabindex: 0,
                                     onclick: move |_| {
                                         if let Err(e) = APP_STATE.write().set_auto_lock(secs) {
                                             *TOAST.write() = Some(ToastData {
@@ -65,6 +68,19 @@ pub fn AutoLockPicker(on_close: EventHandler<()>) -> Element {
                                             });
                                         }
                                         on_close(());
+                                    },
+                                    onkeydown: move |e| {
+                                        if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                                            if let Err(e) = APP_STATE.write().set_auto_lock(secs) {
+                                                *TOAST.write() = Some(ToastData {
+                                                    id: next_toast_id(),
+                                                    text: format!("Failed to save: {e}"),
+                                                    bg_color: "#1e0808".to_string(),
+                                                    text_color: "#f75f4f".to_string(),
+                                                });
+                                            }
+                                            on_close(());
+                                        }
                                     },
                                     span { class: "text-sm text-primary", "{label}" }
                                     if is_selected {

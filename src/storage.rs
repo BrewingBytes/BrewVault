@@ -12,7 +12,7 @@
 //! First-run detection is done via [`detect_vault_state`] before any UI
 //! renders.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use argon2::Argon2;
 use argon2::password_hash::{
@@ -65,16 +65,23 @@ pub fn detect_vault_state() -> Result<VaultState> {
     let path = db_path().ok_or_else(|| {
         rusqlite::Error::InvalidPath(PathBuf::from("could not resolve data or home directory"))
     })?;
+    detect_vault_state_at(&path)
+}
 
+/// Inner implementation of [`detect_vault_state`] that accepts an explicit path.
+/// Exposed for testing.
+pub fn detect_vault_state_at(path: &Path) -> Result<VaultState> {
     if !path.exists() {
         return Ok(VaultState::FirstRun);
     }
 
     // Try the no-password sentinel key and run a test query.
-    let conn = Connection::open(&path)?;
+    let conn = Connection::open(path)?;
     conn.pragma_update(None, "key", NO_PASSWORD_KEY)?;
     let ok = conn
-        .query_row("SELECT 1", [], |r| r.get::<_, i64>(0))
+        .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+            r.get::<_, i64>(0)
+        })
         .is_ok();
 
     Ok(if ok {
@@ -801,10 +808,12 @@ mod tests {
         // "Unlock": re-open with same password
         {
             let conn = open_db_at(path, password).expect("re-open");
-            let ok = conn
-                .query_row("SELECT 1", [], |r| r.get::<_, i64>(0))
-                .is_ok();
-            assert!(ok, "correct password should unlock");
+            let count = conn
+                .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+                    r.get::<_, i64>(0)
+                })
+                .expect("correct password should unlock");
+            assert!(count >= 0, "schema read should succeed");
             let entries = load_entries(&conn).expect("load");
             assert!(entries.is_empty());
         }
@@ -842,10 +851,12 @@ mod tests {
 
         {
             let conn = open_db_at(path, NO_PASSWORD_KEY).expect("re-open");
-            let ok = conn
-                .query_row("SELECT 1", [], |r| r.get::<_, i64>(0))
-                .is_ok();
-            assert!(ok, "no-password vault should open with sentinel key");
+            let count = conn
+                .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+                    r.get::<_, i64>(0)
+                })
+                .expect("no-password vault should open with sentinel key");
+            assert!(count >= 0, "schema read should succeed");
         }
     }
 
@@ -863,10 +874,12 @@ mod tests {
 
         {
             let conn = open_db_at(path, "new-password-xyz").expect("open with new pw");
-            let ok = conn
-                .query_row("SELECT 1", [], |r| r.get::<_, i64>(0))
-                .is_ok();
-            assert!(ok, "new password should unlock after rekey");
+            let count = conn
+                .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+                    r.get::<_, i64>(0)
+                })
+                .expect("new password should unlock after rekey");
+            assert!(count >= 0, "schema read should succeed");
         }
     }
 
@@ -934,5 +947,44 @@ mod tests {
         assert_eq!(get_auto_lock_secs(&conn).unwrap(), 300);
         set_meta(&conn, META_AUTO_LOCK_SECS, "0").unwrap();
         assert_eq!(get_auto_lock_secs(&conn).unwrap(), 0);
+    }
+
+    /// 11. detect_vault_state_at: non-existent path → FirstRun.
+    #[test]
+    fn test_detect_vault_state_first_run() {
+        let temp_dir = tempfile::tempdir().expect("tempdir");
+        let path = temp_dir.path().join("nonexistent.db");
+        let state = detect_vault_state_at(&path).expect("detect");
+        assert_eq!(state, VaultState::FirstRun);
+    }
+
+    /// 12. detect_vault_state_at: no-password vault → NoPassword.
+    #[test]
+    fn test_detect_vault_state_no_password() {
+        let temp_file = NamedTempFile::new().expect("tempfile");
+        let path = temp_file.path();
+
+        {
+            let conn = open_db_at(path, NO_PASSWORD_KEY).expect("create");
+            init_schema(&conn).expect("schema");
+        }
+
+        let state = detect_vault_state_at(path).expect("detect");
+        assert_eq!(state, VaultState::NoPassword);
+    }
+
+    /// 13. detect_vault_state_at: password-protected vault → PasswordProtected.
+    #[test]
+    fn test_detect_vault_state_password_protected() {
+        let temp_file = NamedTempFile::new().expect("tempfile");
+        let path = temp_file.path();
+
+        {
+            let conn = open_db_at(path, "real-password-123").expect("create");
+            init_schema(&conn).expect("schema");
+        }
+
+        let state = detect_vault_state_at(path).expect("detect");
+        assert_eq!(state, VaultState::PasswordProtected);
     }
 }

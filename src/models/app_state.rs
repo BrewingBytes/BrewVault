@@ -148,9 +148,11 @@ impl AppState {
     pub fn unlock(&mut self, password: &str) -> Result<(), TotpError> {
         let conn = storage::open_db(password)?;
 
-        // Test the key — SQLCipher only fails on the first real query.
+        // Test the key — SQLCipher only fails on the first real schema read.
         let key_ok = conn
-            .query_row("SELECT 1", [], |r| r.get::<_, i64>(0))
+            .query_row("SELECT count(*) FROM sqlite_master", [], |r| {
+                r.get::<_, i64>(0)
+            })
             .is_ok();
         if !key_ok {
             return Err(TotpError::WrongPassword);

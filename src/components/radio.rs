@@ -12,10 +12,20 @@ pub fn Radio(selected: bool, on_click: EventHandler<()>) -> Element {
         "border-muted"
     };
 
+    let checked = if selected { "true" } else { "false" };
+
     rsx! {
         div {
             class: "w-4 h-4 rounded-full border-2 {border} flex items-center justify-center cursor-pointer flex-shrink-0",
+            role: "radio",
+            aria_checked: checked,
+            tabindex: 0,
             onclick: move |_| on_click(()),
+            onkeydown: move |e| {
+                if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                    on_click(());
+                }
+            },
             if selected {
                 div { class: "w-2 h-2 rounded-full bg-accent" }
             }

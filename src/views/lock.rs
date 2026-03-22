@@ -1,5 +1,9 @@
 use dioxus::prelude::*;
 
+use std::sync::atomic::Ordering;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use crate::LAST_INTERACTION_SECS;
 use crate::components::button::{Button, ButtonVariant};
 use crate::components::icons::ILock;
 use crate::models::app_state::APP_STATE;
@@ -30,6 +34,12 @@ pub fn Lock() -> Element {
         match APP_STATE.write().unlock(&pw) {
             Ok(()) => {
                 password.set(String::new());
+                // Reset the auto-lock timer so the user isn't immediately re-locked.
+                let now = SystemTime::now()
+                    .duration_since(UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_secs();
+                LAST_INTERACTION_SECS.store(now, Ordering::Relaxed);
             }
             Err(TotpError::WrongPassword) => {
                 *wrong_attempts.write() += 1;

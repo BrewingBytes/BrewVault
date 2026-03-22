@@ -75,7 +75,15 @@ pub fn Setup() -> Element {
                 div { class: "w-full bg-surface border border-edge rounded-2xl divide-y divide-edge overflow-hidden",
                     div {
                         class: "flex items-center gap-3 px-4 py-3.5 cursor-pointer",
+                        role: "radio",
+                        aria_checked: if using_pw { "true" } else { "false" },
+                        tabindex: 0,
                         onclick: move |_| use_password.set(true),
+                        onkeydown: move |e| {
+                            if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                                use_password.set(true);
+                            }
+                        },
                         Radio {
                             selected: using_pw,
                             on_click: move |_| use_password.set(true),
@@ -89,7 +97,15 @@ pub fn Setup() -> Element {
                     }
                     div {
                         class: "flex items-center gap-3 px-4 py-3.5 cursor-pointer",
+                        role: "radio",
+                        aria_checked: if !using_pw { "true" } else { "false" },
+                        tabindex: 0,
                         onclick: move |_| use_password.set(false),
+                        onkeydown: move |e| {
+                            if e.key() == Key::Enter || e.key() == Key::Character(" ".to_string()) {
+                                use_password.set(false);
+                            }
+                        },
                         Radio {
                             selected: !using_pw,
                             on_click: move |_| use_password.set(false),

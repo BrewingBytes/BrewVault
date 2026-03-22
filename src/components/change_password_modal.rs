@@ -16,7 +16,6 @@ pub fn ChangePasswordModal(on_close: EventHandler<()>) -> Element {
     let mut new_pw = use_signal(String::new);
     let mut confirm_pw = use_signal(String::new);
     let mut error_msg = use_signal(String::new);
-    let is_rekeying = use_signal(|| false);
 
     let new_pw_val = new_pw.read().clone();
     let confirm_val = confirm_pw.read().clone();
@@ -25,8 +24,7 @@ pub fn ChangePasswordModal(on_close: EventHandler<()>) -> Element {
     let new_too_short = !new_pw_val.is_empty() && new_pw_val.len() < 8;
     let mismatch = !confirm_val.is_empty() && new_pw_val != confirm_val;
 
-    let can_save = !is_rekeying()
-        && new_pw_val.len() >= 8
+    let can_save = new_pw_val.len() >= 8
         && new_pw_val == confirm_val
         && (!has_password || !current_pw.read().is_empty());
 
@@ -66,17 +64,16 @@ pub fn ChangePasswordModal(on_close: EventHandler<()>) -> Element {
         }
     };
 
-    let save_label = if is_rekeying() {
-        "Saving…"
-    } else {
-        "Save Changes"
-    };
-
     rsx! {
         // Backdrop
         div {
             class: "fixed inset-0 bg-[rgba(0,0,0,0.6)] flex items-center justify-center z-50 px-6",
             onclick: move |_| on_close(()),
+            onkeydown: move |e| {
+                if e.key() == Key::Escape {
+                    on_close(());
+                }
+            },
 
             // Modal panel (stop propagation so click inside doesn't close)
             div {
@@ -154,7 +151,7 @@ pub fn ChangePasswordModal(on_close: EventHandler<()>) -> Element {
                 // Actions
                 div { class: "flex flex-col gap-2",
                     Button {
-                        label: save_label,
+                        label: "Save Changes",
                         variant: ButtonVariant::Primary,
                         disabled: !can_save,
                         on_click: move |_: Event<MouseData>| do_save(),
@@ -163,7 +160,7 @@ pub fn ChangePasswordModal(on_close: EventHandler<()>) -> Element {
                     if has_password {
                         button {
                             class: "text-xs text-danger text-center py-1 cursor-pointer bg-transparent border-none",
-                            disabled: current_pw.read().is_empty() || is_rekeying(),
+                            disabled: current_pw.read().is_empty(),
                             onclick: on_remove_password,
                             "Remove password"
                         }
