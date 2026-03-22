@@ -387,6 +387,24 @@ pub fn ICircleSlash(#[props(default = "w-[15px] h-[15px]".to_string())] class: S
     }
 }
 
+/// Lock icon — used for the vault lock screen and lock state indicators.
+#[component]
+pub fn ILock(#[props(default = "w-8 h-8".to_string())] class: String) -> Element {
+    rsx! {
+        svg {
+            class: "{class}",
+            view_box: "0 0 24 24",
+            fill: "none",
+            stroke: "currentColor",
+            stroke_width: "1.75",
+            stroke_linecap: "round",
+            stroke_linejoin: "round",
+            rect { x: "3", y: "11", width: "18", height: "11", rx: "2", ry: "2" }
+            path { d: "M7 11V7a5 5 0 0 1 10 0v4" }
+        }
+    }
+}
+
 /// Gear/cog icon used for the Settings nav item.
 #[component]
 pub fn ICog() -> Element {

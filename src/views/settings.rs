@@ -1,6 +1,8 @@
 use dioxus::prelude::*;
 
 use crate::components::{
+    auto_lock_picker::AutoLockPicker,
+    change_password_modal::ChangePasswordModal,
     icons::{
         ICheck, IChevronRight, ICloud, IDownload, IGlobe, IInfo, IShield, IStar, ITrash, IUpload,
     },
@@ -106,16 +108,37 @@ fn DeleteConfirm(on_cancel: EventHandler<()>, on_delete: EventHandler<()>) -> El
     }
 }
 
+/// Returns a human-readable label for the current auto-lock timeout.
+fn auto_lock_label() -> String {
+    match APP_STATE.read().auto_lock_timeout {
+        None => "Off".to_string(),
+        Some(d) => {
+            let secs = d.as_secs();
+            if secs < 60 {
+                format!("{secs}s")
+            } else {
+                let mins = secs / 60;
+                if mins == 1 {
+                    "1 minute".to_string()
+                } else {
+                    format!("{mins} minutes")
+                }
+            }
+        }
+    }
+}
+
 /// Application settings view.
 #[component]
 pub fn Settings() -> Element {
     let biometric_unlock = use_signal(|| false);
-    let auto_lock = use_signal(|| false);
     let block_screenshots = use_signal(|| false);
     let cloud_sync = use_signal(|| false);
     let mut language_picker_open = use_signal(|| false);
     let selected_language = use_signal(|| "English".to_string());
     let mut delete_confirm_open = use_signal(|| false);
+    let mut change_password_open = use_signal(|| false);
+    let mut auto_lock_picker_open = use_signal(|| false);
 
     let profile_name = "BrewVault";
     let profile_email = "brewvault@brewingbytes.com";
@@ -145,11 +168,9 @@ pub fn Settings() -> Element {
             SettingRow {
                 icon: rsx! { IShield { class: "w-4 h-4" } },
                 label: "Auto-lock",
-                on_click: move |_| {},
-                Toggle {
-                    checked: auto_lock(),
-                    on_change: move |_| nyi(),
-                }
+                sub_label: auto_lock_label(),
+                on_click: move |_| auto_lock_picker_open.set(true),
+                IChevronRight { class: "w-4 h-4 text-muted" }
             }
             SettingRow {
                 icon: rsx! { IShield { class: "w-4 h-4" } },
@@ -162,8 +183,8 @@ pub fn Settings() -> Element {
             }
             SettingRow {
                 icon: rsx! { IShield { class: "w-4 h-4" } },
-                label: "Change PIN",
-                on_click: move |_| nyi(),
+                label: "Change Password",
+                on_click: move |_| change_password_open.set(true),
                 IChevronRight { class: "w-4 h-4 text-muted" }
             }
 
@@ -260,6 +281,18 @@ pub fn Settings() -> Element {
                         });
                     },
                 }
+            }
+        }
+
+        // Modals rendered outside the scrollable area so they sit above everything
+        if change_password_open() {
+            ChangePasswordModal {
+                on_close: move |_| change_password_open.set(false),
+            }
+        }
+        if auto_lock_picker_open() {
+            AutoLockPicker {
+                on_close: move |_| auto_lock_picker_open.set(false),
             }
         }
     }
