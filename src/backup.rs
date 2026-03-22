@@ -34,7 +34,7 @@ use aes_gcm::aead::Aead;
 use aes_gcm::{Aes256Gcm, KeyInit, Nonce};
 use argon2::{Algorithm, Argon2, Params, Version};
 use base64::{Engine, engine::general_purpose::STANDARD as B64};
-use rand_core::{OsRng, RngCore};
+use getrandom::fill as os_random;
 use serde::{Deserialize, Serialize};
 
 use crate::models::error::{BackupError, TotpError};
@@ -151,7 +151,7 @@ fn derive_key(passphrase: &str, salt: &[u8]) -> Result<[u8; 32], BackupError> {
 /// `ciphertext_plus_tag` is `ciphertext || tag` (last 16 bytes are the tag).
 fn aes_encrypt(key: &[u8; 32], plaintext: &[u8]) -> Result<(Vec<u8>, Vec<u8>), BackupError> {
     let mut nonce_bytes = [0u8; 12];
-    OsRng.fill_bytes(&mut nonce_bytes);
+    os_random(&mut nonce_bytes).map_err(|e| BackupError::InvalidFormat(format!("rng: {e}")))?;
     let cipher = Aes256Gcm::new_from_slice(key)
         .map_err(|e| BackupError::InvalidFormat(format!("aes key: {e}")))?;
     let nonce = Nonce::from_slice(&nonce_bytes);
@@ -221,9 +221,11 @@ pub fn export_vault(entries: &[TotpEntry], passphrase: &str, path: &Path) -> Res
 
     // 2. Generate random master key + salt
     let mut master_key = [0u8; 32];
-    OsRng.fill_bytes(&mut master_key);
+    os_random(&mut master_key)
+        .map_err(|e| TotpError::Backup(BackupError::InvalidFormat(format!("rng: {e}"))))?;
     let mut salt = [0u8; 32];
-    OsRng.fill_bytes(&mut salt);
+    os_random(&mut salt)
+        .map_err(|e| TotpError::Backup(BackupError::InvalidFormat(format!("rng: {e}"))))?;
 
     // 3. Derive slot key from passphrase
     let slot_key = derive_key(passphrase, &salt).map_err(TotpError::Backup)?;
