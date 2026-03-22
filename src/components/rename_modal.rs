@@ -36,10 +36,27 @@ pub fn RenameModal(
 
     rsx! {
         div {
+            id: "rename-modal",
             class: "p-4",
             onkeydown: move |e: KeyboardEvent| {
                 if e.key() == Key::Escape {
                     on_cancel.call(());
+                }
+                if e.key() == Key::Tab {
+                    e.prevent_default();
+                    let dir: i32 = if e.modifiers().contains(Modifiers::SHIFT) { -1 } else { 1 };
+                    let script = format!(r#"
+                        (function() {{
+                            var modal = document.getElementById('rename-modal');
+                            if (!modal) return;
+                            var focusable = Array.from(modal.querySelectorAll('input:not([disabled]), button:not([disabled])'));
+                            if (focusable.length === 0) return;
+                            var idx = focusable.indexOf(document.activeElement);
+                            var next = ((idx + {dir}) % focusable.length + focusable.length) % focusable.length;
+                            focusable[next].focus();
+                        }})();
+                    "#);
+                    let _ = dioxus::document::eval(&script);
                 }
             },
 

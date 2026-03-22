@@ -1,4 +1,6 @@
+pub mod backup;
 pub mod components;
+pub mod file_picker;
 pub mod models;
 pub mod routes;
 pub mod storage;

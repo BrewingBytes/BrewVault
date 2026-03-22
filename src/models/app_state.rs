@@ -256,15 +256,22 @@ impl AppState {
 
     /// Assigns `sort_order = max + 1` and persists `entry` to the vault
     /// database, then appends it to the in-memory list.
-    pub fn add_entry(&mut self, mut entry: TotpEntry) -> Result<(), TotpError> {
+    ///
+    /// Returns `true` if the entry was inserted, `false` if it was skipped
+    /// because an entry with the same UUID already exists (duplicate import).
+    pub fn add_entry(&mut self, mut entry: TotpEntry) -> Result<bool, TotpError> {
         let arc = self.db_or_err()?;
         let conn = arc.lock().expect("DB mutex poisoned");
         let max_so = storage::max_sort_order(&conn)?;
         entry.sort_order = max_so + 1;
-        storage::insert_entry(&conn, &entry)?;
-        self.entries.push(entry);
-        self.entries.sort_by(|a, b| b.sort_order.cmp(&a.sort_order));
-        Ok(())
+        let rows = storage::insert_entry(&conn, &entry)?;
+        if rows == 1 {
+            self.entries.push(entry);
+            self.entries.sort_by(|a, b| b.sort_order.cmp(&a.sort_order));
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 
     /// Removes the entry with `id` from the vault database then removes it

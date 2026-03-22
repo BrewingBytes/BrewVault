@@ -5,45 +5,50 @@
 //! `rusqlite::Error`) keeps call sites clean — most functions can propagate
 //! errors with `?` without any explicit mapping.
 
+/// Errors specific to backup export and import operations.
+#[derive(Debug, thiserror::Error)]
+pub enum BackupError {
+    /// An I/O error reading or writing the backup file.
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    /// The file is not a valid `.brewvault` / Aegis-compatible JSON file.
+    #[error("invalid backup file: {0}")]
+    InvalidFormat(String),
+    /// The supplied passphrase is incorrect (AES-GCM decryption failed).
+    #[error("incorrect passphrase")]
+    WrongPassphrase,
+    /// The backup uses biometric-only encryption, which BrewVault cannot decode.
+    #[error("biometric-only backups are not supported")]
+    BiometricNotSupported,
+}
+
 /// All errors that BrewVault can encounter at runtime.
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum TotpError {
     /// The TOTP library failed to build or generate a code, usually because
     /// the entry's secret is not valid base32.
+    #[error("failed to generate TOTP code")]
     TOTPGenerationError,
     /// A database operation failed. The inner [`rusqlite::Error`] carries the
     /// original cause and can be displayed or logged directly.
-    StorageError(rusqlite::Error),
+    #[error("storage error: {0}")]
+    StorageError(#[from] rusqlite::Error),
     /// The supplied master password is incorrect.
+    #[error("wrong password")]
     WrongPassword,
     /// The new password and confirmation do not match.
+    #[error("passwords do not match")]
     PasswordMismatch,
     /// The supplied password is too short (minimum 8 characters).
+    #[error("password must be at least 8 characters")]
     PasswordTooShort,
     /// The supplied password is a reserved sentinel value.
+    #[error("that password is reserved \u{2014} choose another")]
     ReservedPassword,
     /// An operation that requires an unlocked vault was attempted while locked.
+    #[error("vault is locked")]
     VaultLocked,
-}
-
-impl std::fmt::Display for TotpError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TotpError::TOTPGenerationError => write!(f, "failed to generate TOTP code"),
-            TotpError::StorageError(e) => write!(f, "storage error: {e}"),
-            TotpError::WrongPassword => write!(f, "wrong password"),
-            TotpError::PasswordMismatch => write!(f, "passwords do not match"),
-            TotpError::PasswordTooShort => write!(f, "password must be at least 8 characters"),
-            TotpError::ReservedPassword => write!(f, "that password is reserved — choose another"),
-            TotpError::VaultLocked => write!(f, "vault is locked"),
-        }
-    }
-}
-
-impl From<rusqlite::Error> for TotpError {
-    /// Wraps a [`rusqlite::Error`] so that storage functions can be called
-    /// with `?` in any context that returns `Result<_, TotpError>`.
-    fn from(e: rusqlite::Error) -> Self {
-        TotpError::StorageError(e)
-    }
+    /// A backup export or import operation failed.
+    #[error(transparent)]
+    Backup(BackupError),
 }

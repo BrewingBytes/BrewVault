@@ -32,9 +32,28 @@ pub fn AutoLockPicker(on_close: EventHandler<()>) -> Element {
 
             // Modal panel
             div {
+                id: "auto-lock-modal",
                 class: "w-full max-w-sm bg-surface border border-edge rounded-2xl overflow-hidden",
                 style: "box-shadow: 0 8px 32px rgba(0,0,0,0.6);",
                 onclick: move |e| e.stop_propagation(),
+                onkeydown: move |e: KeyboardEvent| {
+                    if e.key() == Key::Tab {
+                        e.prevent_default();
+                        let dir: i32 = if e.modifiers().contains(Modifiers::SHIFT) { -1 } else { 1 };
+                        let script = format!(r#"
+                            (function() {{
+                                var modal = document.getElementById('auto-lock-modal');
+                                if (!modal) return;
+                                var focusable = Array.from(modal.querySelectorAll('button:not([disabled]), [tabindex="0"]:not([disabled])'));
+                                if (focusable.length === 0) return;
+                                var idx = focusable.indexOf(document.activeElement);
+                                var next = ((idx + {dir}) % focusable.length + focusable.length) % focusable.length;
+                                focusable[next].focus();
+                            }})();
+                        "#);
+                        let _ = dioxus::document::eval(&script);
+                    }
+                },
 
                 // Header
                 div { class: "flex items-center justify-between px-5 py-4 border-b border-edge",

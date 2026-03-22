@@ -44,12 +44,29 @@ pub fn DeleteConfirmModal() -> Element {
 
             // Modal surface — stop propagation so clicks on it don't close
             div {
+                id: "delete-confirm-modal",
                 class: "bg-surface border border-edge rounded-2xl p-6 max-w-[320px] w-full mx-4",
                 style: "box-shadow: var(--shadow-menu);",
                 onclick: move |e| e.stop_propagation(),
                 onkeydown: move |e: KeyboardEvent| {
                     if e.key() == Key::Escape {
                         *DELETE_MODAL.write() = None;
+                    }
+                    if e.key() == Key::Tab {
+                        e.prevent_default();
+                        let dir: i32 = if e.modifiers().contains(Modifiers::SHIFT) { -1 } else { 1 };
+                        let script = format!(r#"
+                            (function() {{
+                                var modal = document.getElementById('delete-confirm-modal');
+                                if (!modal) return;
+                                var focusable = Array.from(modal.querySelectorAll('button:not([disabled])'));
+                                if (focusable.length === 0) return;
+                                var idx = focusable.indexOf(document.activeElement);
+                                var next = ((idx + {dir}) % focusable.length + focusable.length) % focusable.length;
+                                focusable[next].focus();
+                            }})();
+                        "#);
+                        let _ = dioxus::document::eval(&script);
                     }
                 },
 
