@@ -352,11 +352,12 @@ pub fn max_sort_order(conn: &Connection) -> Result<u64> {
 /// Inserts a new TOTP entry. The caller must set `entry.sort_order` before
 /// calling (typically `max_sort_order() + 1`).
 ///
-/// Unlike the removed `save_entry`, this uses a plain `INSERT` — it will fail
-/// if an entry with the same `id` already exists.
-pub fn insert_entry(conn: &Connection, entry: &TotpEntry) -> Result<()> {
+/// Uses `INSERT OR IGNORE` — if an entry with the same `id` already exists the
+/// row is silently skipped and `0` is returned. Returns `1` on a successful
+/// insert. This allows callers to detect duplicates without an error.
+pub fn insert_entry(conn: &Connection, entry: &TotpEntry) -> Result<usize> {
     conn.execute(
-        "INSERT INTO entries
+        "INSERT OR IGNORE INTO entries
              (id, issuer, account, secret, algorithm, digits, period, `group`, sort_order)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
@@ -370,8 +371,7 @@ pub fn insert_entry(conn: &Connection, entry: &TotpEntry) -> Result<()> {
             entry.group.as_deref(),
             entry.sort_order as i64,
         ],
-    )?;
-    Ok(())
+    )
 }
 
 /// Renames an entry's `issuer` and `account` fields.

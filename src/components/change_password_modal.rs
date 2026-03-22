@@ -1,6 +1,7 @@
 use dioxus::prelude::*;
 
 use crate::components::button::{Button, ButtonVariant};
+use crate::components::input::Input;
 use crate::components::strength_bar::StrengthBar;
 use crate::models::app_state::APP_STATE;
 use crate::models::error::TotpError;
@@ -12,9 +13,9 @@ use crate::models::error::TotpError;
 pub fn ChangePasswordModal(on_close: EventHandler<()>) -> Element {
     let has_password = APP_STATE.read().has_password;
 
-    let mut current_pw = use_signal(String::new);
-    let mut new_pw = use_signal(String::new);
-    let mut confirm_pw = use_signal(String::new);
+    let current_pw = use_signal(String::new);
+    let new_pw = use_signal(String::new);
+    let confirm_pw = use_signal(String::new);
     let mut error_msg = use_signal(String::new);
 
     let new_pw_val = new_pw.read().clone();
@@ -77,9 +78,28 @@ pub fn ChangePasswordModal(on_close: EventHandler<()>) -> Element {
 
             // Modal panel (stop propagation so click inside doesn't close)
             div {
+                id: "change-password-modal",
                 class: "w-full max-w-sm bg-surface border border-edge rounded-2xl p-6 flex flex-col gap-5",
                 style: "box-shadow: 0 8px 32px rgba(0,0,0,0.6);",
                 onclick: move |e| e.stop_propagation(),
+                onkeydown: move |e: KeyboardEvent| {
+                    if e.key() == Key::Tab {
+                        e.prevent_default();
+                        let dir: i32 = if e.modifiers().contains(Modifiers::SHIFT) { -1 } else { 1 };
+                        let script = format!(r#"
+                            (function() {{
+                                var modal = document.getElementById('change-password-modal');
+                                if (!modal) return;
+                                var focusable = Array.from(modal.querySelectorAll('input:not([disabled]), button:not([disabled])'));
+                                if (focusable.length === 0) return;
+                                var idx = focusable.indexOf(document.activeElement);
+                                var next = ((idx + {dir}) % focusable.length + focusable.length) % focusable.length;
+                                focusable[next].focus();
+                            }})();
+                        "#);
+                        let _ = dioxus::document::eval(&script);
+                    }
+                },
 
                 // Header
                 div { class: "flex items-center justify-between",
@@ -94,51 +114,46 @@ pub fn ChangePasswordModal(on_close: EventHandler<()>) -> Element {
                 div { class: "flex flex-col gap-4",
                     // Current password (only when vault is password-protected)
                     if has_password {
-                        div { class: "flex flex-col gap-1.5",
-                            label { class: "text-xs text-muted font-medium", "Current password" }
-                            input {
-                                class: "w-full bg-surface2 border border-edge rounded-xl px-3 py-2.5 text-sm text-primary outline-none focus:border-accent transition-colors",
-                                r#type: "password",
-                                placeholder: "Enter current password",
-                                value: "{current_pw}",
-                                oninput: move |e| current_pw.set(e.value()),
-                            }
+                        Input {
+                            label: "Current password",
+                            placeholder: "Enter current password",
+                            value: current_pw,
+                            password: true,
+                            autofocus: true,
                         }
                     }
 
                     // New password
-                    div { class: "flex flex-col gap-1.5",
-                        label { class: "text-xs text-muted font-medium", "New password" }
-                        input {
-                            class: "w-full bg-surface2 border border-edge rounded-xl px-3 py-2.5 text-sm text-primary outline-none focus:border-accent transition-colors",
-                            r#type: "password",
+                    div {
+                        Input {
+                            label: "New password",
                             placeholder: "At least 8 characters",
-                            value: "{new_pw}",
-                            oninput: move |e| new_pw.set(e.value()),
+                            value: new_pw,
+                            password: true,
                         }
                         StrengthBar { password: new_pw_val.clone() }
                         if new_too_short {
-                            p { class: "text-xs text-danger", "At least 8 characters required" }
+                            p { class: "text-xs text-danger mt-1", "At least 8 characters required" }
                         }
                     }
 
                     // Confirm password
-                    div { class: "flex flex-col gap-1.5",
-                        label { class: "text-xs text-muted font-medium", "Confirm new password" }
-                        input {
-                            class: "w-full bg-surface2 border border-edge rounded-xl px-3 py-2.5 text-sm text-primary outline-none focus:border-accent transition-colors",
-                            r#type: "password",
-                            placeholder: "Repeat new password",
-                            value: "{confirm_pw}",
-                            oninput: move |e| confirm_pw.set(e.value()),
-                            onkeydown: move |e| {
+                    div {
+                        div {
+                            onkeydown: move |e: KeyboardEvent| {
                                 if e.key() == Key::Enter && can_save {
                                     do_save();
                                 }
                             },
+                            Input {
+                                label: "Confirm new password",
+                                placeholder: "Repeat new password",
+                                value: confirm_pw,
+                                password: true,
+                            }
                         }
                         if mismatch {
-                            p { class: "text-xs text-danger", "Passwords don't match" }
+                            p { class: "text-xs text-danger mt-1", "Passwords don't match" }
                         }
                     }
                 }

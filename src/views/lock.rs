@@ -6,6 +6,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use crate::LAST_INTERACTION_SECS;
 use crate::components::button::{Button, ButtonVariant};
 use crate::components::icons::ILock;
+use crate::components::input::Input;
 use crate::models::app_state::APP_STATE;
 use crate::models::error::TotpError;
 use crate::storage;
@@ -22,6 +23,13 @@ pub fn Lock() -> Element {
     let mut password = use_signal(String::new);
     let mut error_msg = use_signal(String::new);
     let mut wrong_attempts = use_signal(|| 0u32);
+
+    // Clear the error whenever the password value changes (covers paste / autofill,
+    // not just keydown events).
+    use_effect(move || {
+        let _ = password.read();
+        error_msg.set(String::new());
+    });
 
     let mut do_unlock = move || {
         let pw = if has_password {
@@ -80,23 +88,20 @@ pub fn Lock() -> Element {
 
                 // Password field — only shown for password-protected vaults
                 if has_password {
-                    div { class: "w-full flex flex-col gap-1.5",
-                        label { class: "text-xs text-muted font-medium", "Password" }
-                        input {
-                            class: "w-full bg-surface border border-edge rounded-xl px-3 py-2.5 text-sm text-primary outline-none focus:border-accent transition-colors",
-                            r#type: "password",
+                    div {
+                        class: "w-full",
+                        onkeydown: move |e: KeyboardEvent| {
+                            error_msg.set(String::new());
+                            if e.key() == Key::Enter && !password.read().is_empty() {
+                                do_unlock();
+                            }
+                        },
+                        Input {
+                            label: "Password",
                             placeholder: "Master password",
+                            value: password,
+                            password: true,
                             autofocus: true,
-                            value: "{password}",
-                            oninput: move |e| {
-                                password.set(e.value());
-                                error_msg.set(String::new());
-                            },
-                            onkeydown: move |e| {
-                                if e.key() == Key::Enter && !password.read().is_empty() {
-                                    do_unlock();
-                                }
-                            },
                         }
                     }
                 }

@@ -2,6 +2,7 @@ use dioxus::prelude::*;
 
 use crate::components::button::{Button, ButtonVariant};
 use crate::components::icons::ILock;
+use crate::components::input::Input;
 use crate::components::radio::Radio;
 use crate::components::strength_bar::StrengthBar;
 use crate::models::app_state::APP_STATE;
@@ -14,8 +15,8 @@ use crate::storage::NO_PASSWORD_KEY;
 #[component]
 pub fn Setup() -> Element {
     let mut use_password = use_signal(|| true);
-    let mut password = use_signal(String::new);
-    let mut confirm = use_signal(String::new);
+    let password = use_signal(String::new);
+    let confirm = use_signal(String::new);
     let mut error_msg = use_signal(String::new);
 
     let pw = password.read().clone();
@@ -122,32 +123,27 @@ pub fn Setup() -> Element {
                 // Password fields (only when "Set a password" is selected)
                 if using_pw {
                     div { class: "w-full flex flex-col gap-3",
-                        div { class: "flex flex-col gap-1.5",
-                            label { class: "text-xs text-muted font-medium", "Password" }
-                            input {
-                                class: "w-full bg-surface border border-edge rounded-xl px-3 py-2.5 text-sm text-primary outline-none focus:border-accent transition-colors",
-                                r#type: "password",
+                        div { class: "flex flex-col gap-1",
+                            Input {
+                                label: "Password",
                                 placeholder: "Enter password",
-                                value: "{password}",
-                                oninput: move |e| password.set(e.value()),
+                                value: password,
+                                password: true,
+                                autofocus: true,
                             }
                             StrengthBar { password: pw.clone() }
                         }
 
-                        div { class: "flex flex-col gap-1.5",
-                            label { class: "text-xs text-muted font-medium", "Confirm password" }
-                            input {
-                                class: "w-full bg-surface border border-edge rounded-xl px-3 py-2.5 text-sm text-primary outline-none focus:border-accent transition-colors",
-                                r#type: "password",
-                                placeholder: "Confirm password",
-                                value: "{confirm}",
-                                oninput: move |e| confirm.set(e.value()),
-                                onkeydown: move |e| {
-                                    if e.key() == Key::Enter && can_submit {
-                                        do_submit();
-                                    }
-                                },
-                            }
+                        Input {
+                            label: "Confirm password",
+                            placeholder: "Confirm password",
+                            value: confirm,
+                            password: true,
+                            onkeydown: move |e: KeyboardEvent| {
+                                if e.key() == Key::Enter && can_submit {
+                                    do_submit();
+                                }
+                            },
                         }
 
                         if let Some(msg) = inline_err {

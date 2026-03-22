@@ -1,16 +1,22 @@
+use std::path::PathBuf;
+
 use dioxus::prelude::*;
 
 use crate::components::{
     auto_lock_picker::AutoLockPicker,
     change_password_modal::ChangePasswordModal,
+    export_modal::ExportModal,
     icons::{
-        ICheck, IChevronRight, ICloud, IDownload, IGlobe, IInfo, IShield, IStar, ITrash, IUpload,
+        ICheck, IChevronRight, ICloud, IDownload, IGlobe, IInfo, ILock, IShield, IStar, ITrash,
+        IUpload,
     },
+    import_modal::ImportModal,
     setting_row::SettingRow,
     settings_divider::SettingsDivider,
     toast::{TOAST, ToastData, next_toast_id},
     toggle::Toggle,
 };
+use crate::file_picker;
 use crate::models::app_state::APP_STATE;
 use crate::totp::initials;
 
@@ -139,6 +145,8 @@ pub fn Settings() -> Element {
     let mut delete_confirm_open = use_signal(|| false);
     let mut change_password_open = use_signal(|| false);
     let mut auto_lock_picker_open = use_signal(|| false);
+    let mut export_modal_open = use_signal(|| false);
+    let mut import_path: Signal<Option<PathBuf>> = use_signal(|| None);
 
     let profile_name = "BrewVault";
     let profile_email = "brewvault@brewingbytes.com";
@@ -187,6 +195,12 @@ pub fn Settings() -> Element {
                 on_click: move |_| change_password_open.set(true),
                 IChevronRight { class: "w-4 h-4 text-muted" }
             }
+            SettingRow {
+                icon: rsx! { ILock { class: "w-4 h-4" } },
+                label: "Lock vault",
+                on_click: move |_| APP_STATE.write().lock(),
+                IChevronRight { class: "w-4 h-4 text-muted" }
+            }
 
             // BACKUP & SYNC
             SettingsDivider { label: "Backup & Sync" }
@@ -202,13 +216,19 @@ pub fn Settings() -> Element {
             SettingRow {
                 icon: rsx! { IDownload { class: "w-4 h-4" } },
                 label: "Export backup",
-                on_click: move |_| nyi(),
+                on_click: move |_| export_modal_open.set(true),
                 IChevronRight { class: "w-4 h-4 text-muted" }
             }
             SettingRow {
                 icon: rsx! { IUpload { class: "w-4 h-4" } },
                 label: "Import accounts",
-                on_click: move |_| nyi(),
+                on_click: move |_| {
+                    spawn(async move {
+                        if let Some(p) = file_picker::open_file(&["brewvault"]).await {
+                            import_path.set(Some(p));
+                        }
+                    });
+                },
                 IChevronRight { class: "w-4 h-4 text-muted" }
             }
 
@@ -293,6 +313,17 @@ pub fn Settings() -> Element {
         if auto_lock_picker_open() {
             AutoLockPicker {
                 on_close: move |_| auto_lock_picker_open.set(false),
+            }
+        }
+        if export_modal_open() {
+            ExportModal {
+                on_close: move |_| export_modal_open.set(false),
+            }
+        }
+        if let Some(p) = import_path.read().clone() {
+            ImportModal {
+                path: p,
+                on_close: move |_| import_path.set(None),
             }
         }
     }

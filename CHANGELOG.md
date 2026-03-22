@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Encrypted backup export** — Settings → Backup → Export Backup opens a passphrase entry modal with a live strength bar, then triggers the OS save dialog to write a date-stamped `.brewvault` file (e.g. `brewvault-2026-03-22.brewvault`); the file is encrypted with AES-256-GCM + Argon2id and is Aegis-compatible
+- **Backup import** — Settings → Backup → Import Backup opens the OS file picker, then prompts for the backup passphrase; entries are merged into the vault (duplicates silently skipped by UUID), and a result breakdown shows how many accounts were imported vs already existed
+- **Show/hide toggle on all password fields** — every password input in the app (Lock screen, Setup, Change Password, Export passphrase, Import passphrase) now has an eye icon toggle to reveal or hide the entered text
+- **`ExportModal` component** — passphrase entry + StrengthBar + double-click guard before the OS save dialog; focus-trapped Tab cycle
+- **`ImportModal` component** — passphrase entry, inline error messages (wrong passphrase, corrupted file), and a result screen showing imported / already-existed counts; focus-trapped Tab cycle
+- **`backup.rs` module** — `export_vault` and `import_vault` using the Aegis JSON envelope format with AES-256-GCM encryption and Argon2id key derivation; full unit test suite (round-trip, wrong passphrase, corrupt data, empty vault, file size guard)
+- **`file_picker.rs` module** — `save_file` / `open_file` async helpers wrapping `rfd::AsyncFileDialog` for macOS main-thread safety
+- **`IEye` / `IEyeOff` icons** — new SVG icon components in `icons.rs` used by the password show/hide toggle in `Input`
+- **`password` prop on `Input` component** — `password: bool` renders the field as `type="password"` with an eye icon toggle; also adds `autofocus: bool` and `onkeydown: EventHandler<KeyboardEvent>` props
+
 - **Master password protection** — on first launch you choose a master password (or skip for password-free mode); your vault is encrypted with it via SQLCipher and you're prompted to unlock it each session
 - **Lock screen** — when the vault is locked, a clean unlock form is shown; three consecutive wrong attempts surface a warning
 - **Auto-lock** — set a timeout (1 / 5 / 10 / 15 / 30 min, or Off) in Settings → Security; the vault locks automatically after the chosen period of inactivity
