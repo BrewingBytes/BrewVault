@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-03-22
+
 ### Added
 - **Encrypted backup export** — Settings → Backup → Export Backup opens a passphrase entry modal with a live strength bar, then triggers the OS save dialog to write a date-stamped `.brewvault` file (e.g. `brewvault-2026-03-22.brewvault`); the file is encrypted with AES-256-GCM + Argon2id and is Aegis-compatible
 - **Backup import** — Settings → Backup → Import Backup opens the OS file picker, then prompts for the backup passphrase; entries are merged into the vault (duplicates silently skipped by UUID), and a result breakdown shows how many accounts were imported vs already existed
