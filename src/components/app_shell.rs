@@ -73,12 +73,16 @@ pub fn AppShell() -> Element {
 
     match lock_state {
         LockState::FirstRun => rsx! {
-            div { class: "h-screen bg-base",
+            div {
+                class: "h-screen bg-base",
+                ondragstart: move |e| e.prevent_default(),
                 Setup {}
             }
         },
         LockState::Locked => rsx! {
-            div { class: "h-screen bg-base",
+            div {
+                class: "h-screen bg-base",
+                ondragstart: move |e| e.prevent_default(),
                 Lock {}
             }
         },
@@ -89,6 +93,8 @@ pub fn AppShell() -> Element {
                     class: "h-screen bg-base flex flex-col overflow-hidden relative",
                     // Suppress the WebView's built-in "Inspect Element" context menu globally
                     oncontextmenu: move |e| e.prevent_default(),
+                    // Prevent drag-to-reveal white WebView background
+                    ondragstart: move |e| e.prevent_default(),
                     // Record interactions for auto-lock (mouse)
                     onmousemove: move |_| {
                         LAST_INTERACTION_SECS.store(now_secs(), Ordering::Relaxed);
