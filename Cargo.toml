@@ -19,7 +19,7 @@ rfd = "0.17.2"
 thiserror = "2.0.18"
 base64 = "0.22.1"
 rand_core = "0.10"
-getrandom = "0.3"
+getrandom = "0.4.2"
 
 [profile.release]
 opt-level = "z"
