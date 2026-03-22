@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
 - **`Radio` component** — accessible radio button used on the Setup screen for password / no-password selection
 - Three new storage constants — `META_PASSWORD_SET`, `META_PASSWORD_HASH`, `META_AUTO_LOCK_SECS` — replace scattered string literals for meta-table keys
 
+### Fixed
+- Dragging the app window content no longer reveals a white background behind the WebView — the app now feels fully native with no browser-like rubber-band or drag artifacts
+
 ### Changed
 - `AppShell` now drives a `LockState` machine (`FirstRun` → `Locked` ↔ `Unlocked`) and renders the appropriate view before reaching the normal routing layer
 - Settings → Security → "Change PIN" row renamed to "Change Password"; "Auto-lock" row now opens the new `AutoLockPicker` modal
