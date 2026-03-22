@@ -56,15 +56,19 @@ brew-vault/
 │   ├── components/       # Dioxus UI components
 │   │   ├── account_row.rs
 │   │   ├── app_shell.rs
+│   │   ├── auto_lock_picker.rs
 │   │   ├── bottom_nav.rs
 │   │   ├── button.rs
+│   │   ├── change_password_modal.rs
 │   │   ├── context_menu.rs
 │   │   ├── delete_confirm_modal.rs
 │   │   ├── icons.rs
 │   │   ├── input.rs
+│   │   ├── radio.rs
 │   │   ├── rename_modal.rs
 │   │   ├── ring.rs
 │   │   ├── section_label.rs
+│   │   ├── strength_bar.rs
 │   │   ├── text_divider.rs
 │   │   └── toast.rs
 │   ├── views/            # Route-level page components
@@ -113,6 +117,6 @@ cargo test totp
 
 Tests cover:
 
-- `storage` (unit) — schema init, insert/load round-trip, sort_order ordering, delete, rename, group update, sort_order swap, migration idempotency, and wrong-key rejection
+- `storage` (unit) — schema init, insert/load round-trip, sort_order ordering, delete, rename, group update, sort_order swap, migration idempotency, wrong-key rejection, first-run state (no-password vault), password setup + unlock, rekey, Argon2 hash/verify round-trip, and meta-table operations
 - `totp` (unit) — code generation (SHA-1, SHA-256), output format, invalid secrets, and `seconds_remaining` range
 - `storage_roundtrip` (integration) — persists 3 entries to a real encrypted file, reopens with the same key, and asserts all fields (including `sort_order`) survive the round-trip
