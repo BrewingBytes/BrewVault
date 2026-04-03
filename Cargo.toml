@@ -4,22 +4,22 @@ version = "0.1.2"
 edition = "2024"
 
 [dependencies]
-dioxus = { version = "0.7.3", features = ["desktop", "router", "signals"] }
+dioxus = { version = "0.7.4", features = ["desktop", "router", "signals"] }
 totp-rs = { version = "5.7.1", features = ["gen_secret", "serde_support"] }
 rusqlite = { version = "0.39", features = ["bundled-sqlcipher"] }
 dirs = "6"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
-uuid = { version = "1.22.0", features = ["v4"] }
+uuid = { version = "1.23.0", features = ["v4"] }
 chrono = "0.4.44"
-tokio = { version = "1.50.0", features = ["full"] }
+tokio = { version = "1.51.0", features = ["full"] }
 argon2 = { version = "0.5.3", features = ["std"] }
 aes-gcm = "0.10.3"
 rfd = "0.17.2"
 thiserror = "2.0.18"
 base64 = "0.22.1"
 rand_core = "0.10"
-getrandom = "0.3"
+getrandom = "0.4.2"
 
 [profile.release]
 opt-level = "z"
