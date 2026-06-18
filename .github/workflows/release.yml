@@ -18,7 +18,7 @@ jobs:
     name: Validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Validate tag matches Cargo.toml version
         run: |
@@ -49,7 +49,7 @@ jobs:
     needs: validate
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install Tailwind CSS CLI
         run: brew install tailwindcss
@@ -109,7 +109,7 @@ jobs:
     env:
       CARGO_PROFILE_RELEASE_STRIP: none
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install system dependencies
         run: |
@@ -178,7 +178,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install OpenSSL (MSVC-compatible via vcpkg)
         shell: pwsh
@@ -247,7 +247,7 @@ jobs:
     needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
@@ -276,7 +276,7 @@ jobs:
           fi
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           name: BrewVault ${{ github.ref_name }}
           body: ${{ env.RELEASE_NOTES }}
